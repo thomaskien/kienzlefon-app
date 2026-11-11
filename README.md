@@ -55,6 +55,26 @@ Rückfallwerte. Die sichtbare Bezeichnung `Platz` und der URL-Parameter
 
 Die App lädt die Daten regelmäßig neu und eignet sich damit für den laufenden Einsatz im Praxisalltag.
 
+## Originalaufnahmen als Miniplayer (Feature-Branch)
+
+Optional lassen sich die von Kienzlefon/Whisper aufgenommenen WAV-Segmente
+unmittelbar in der Vorgangskarte oder Tabellenansicht abspielen: ein Player
+je Aufnahme, auch für `medikament-01.wav`, `medikament-02.wav` usw.
+Vorname, Nachname, Geburtsdatum, Grund und andere aufgezeichnete Felder
+werden nach der vorhandenen `payload._kienzlefon.audio`-Metadatenliste
+angezeigt. Der Bereich ist zunächst eingeklappt. Laufende Wiedergabe
+wird beim fünfsekündigen App-Refresh nicht zurückgesetzt.
+
+Zur Einrichtung einen Webserver-Symlink `recordings/` auf den
+Kienzlefon-`ready`-Spool bereitstellen und in `telepraxis-app.php`
+`TELEPRAXIS_RECORDINGS_BASE_URL` auf `'recordings'` setzen.
+Ohne diese Einstellung ist das Feature deaktiviert. Es wird weder eine
+eigene Audio-API noch eine individuelle Berechtigung je Aufnahme eingeführt.
+
+**[Installationshinweise und Tests](docs/RECORDINGS.md)** – insbesondere
+Verzeichnisrechte und die Beschränkung des Symlink-Webpfads auf WAVs
+(`call.json` darf nicht unbeabsichtigt öffentlich werden).
+
 ## Optionale kienzlefon-t2med-Anbindung
 
 Die Einstellungen stehen wie bisher im Kopf von `telepraxis-app.php`.

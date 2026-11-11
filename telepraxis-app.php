@@ -4,6 +4,9 @@
  * Version: 3.6
  *
  * Fortgeführter Changelog (niemals entfernen, nur ergänzen):
+ * - Feature-Branch recording-miniplayer (unveröffentlicht; Version bleibt 3.6):
+ *   - Ein einklappbarer HTML5-Player pro Kienzlefon-WAV-Segment, auch bei mehreren Medikamenten.
+ *   - Optionale statische recordings/-Freigabe; Audioelemente bleiben bei Polling-Updates erhalten.
  * - v3.6 (2026-10-12)
  *   - Optionale T2med-Middleware über Einstellungen im Dateikopf: Telefonnummer wählt, kleiner „Akte“-Knopf öffnet die Patientenakte.
  *   - Benutzer und Platz getrennt in Kopfzeile und Menü: Benutzer ist Bearbeiter, Platz wird als client_id an die Middleware übergeben.
@@ -127,6 +130,10 @@ const TELEPRAXIS_USER_MAXLEN = 64;
 // Der Platz aus der Kopfzeile ist die client_id; telefon kommt aus dem Vorgang.
 const TELEPRAXIS_T2MED_ENABLED = false;
 const TELEPRAXIS_T2MED_BASE_URL = '';
+
+// Optional: URL-Pfad zum Webserver-Symlink auf den Kienzlefon-Ready-Spool.
+// Beispiel: 'recordings' (relativ zur telepraxis-app.php). Leer = Player aus.
+const TELEPRAXIS_RECORDINGS_BASE_URL = '';
 
 function tp_now_iso(): string
 {
@@ -581,6 +588,70 @@ function tp_sms_queue_comments(string $fileName): array
     }
 }
 
+/**
+ * Originalaufnahmen der Whisper-Felder aus der bestehenden Kienzlefon-Metadatenliste.
+ * Keine Dateien suchen oder kopieren: der Webserver liefert WAVs über einen
+ * separat eingerichteten statischen recordings/-Symlink aus.
+ */
+function tp_recording_segments(array $entry, string $fileName): array
+{
+    $base = trim(TELEPRAXIS_RECORDINGS_BASE_URL);
+    if ($base === '' || !preg_match('~^/?[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*$~D', $base)) {
+        return [];
+    }
+
+    $payload = tp_payload($entry);
+    $meta = $payload['_kienzlefon'] ?? null;
+    if (!is_array($meta) || !isset($meta['audio']) || !is_array($meta['audio'])) {
+        return [];
+    }
+
+    $callId = pathinfo($fileName, PATHINFO_FILENAME);
+    if (!preg_match('/^[0-9]{8}_[0-9]{6}_[0-9]{6}$/D', $callId)
+        || ($meta['vorgang_id'] ?? null) !== $callId) {
+        return [];
+    }
+
+    $labels = [
+        'vorname' => 'Vorname',
+        'nachname' => 'Nachname',
+        'geburtsdatum' => 'Geburtsdatum',
+        'telefon' => 'Rückrufnummer',
+        'fachrichtung' => 'Fachrichtung',
+        'grund' => 'Grund',
+        'anliegen' => 'Anliegen',
+    ];
+    $segments = [];
+    $seen = [];
+    foreach ($meta['audio'] as $audio) {
+        if (!is_array($audio) || ($audio['datei_vorhanden'] ?? true) === false
+            || ($audio['status'] ?? '') === 'empty') {
+            continue;
+        }
+        $relative = $audio['datei'] ?? null;
+        if (!is_string($relative) || !preg_match('~^audio/([a-zA-Z0-9_-]+\.wav)$~D', $relative, $match)
+            || isset($seen[$relative])) {
+            continue;
+        }
+        $seen[$relative] = true;
+        $field = (string)($audio['feld'] ?? '');
+        if ($field === 'medikamente') {
+            $index = filter_var($audio['index'] ?? null, FILTER_VALIDATE_INT);
+            $label = $index !== false && $index > 0 ? "Medikament $index" : 'Medikament';
+        } else {
+            $label = $labels[$field] ?? 'Aufnahme ' . (count($segments) + 1);
+        }
+        $segments[] = [
+            'file' => $relative,
+            'label' => $label,
+            'url' => rtrim($base, '/') . '/' . rawurlencode($callId)
+                . '/audio/' . rawurlencode($match[1]),
+        ];
+    }
+
+    return $segments;
+}
+
 function tp_build_entry_view(array $entry, string $fileName): array
 {
     $entry = tp_ensure_entry_app($entry);
@@ -654,6 +725,7 @@ function tp_build_entry_view(array $entry, string $fileName): array
         'deleted_workplace' => (string)($entry['app']['deleted_arbeitsplatz'] ?? ''),
         'deleted_user' => tp_sanitize_user((string)($entry['app']['deleted_benutzer'] ?? '')),
         'comments' => $comments,
+        'recordings' => tp_recording_segments($entry, $fileName),
     ];
 }
 
@@ -1308,6 +1380,22 @@ $isAdmin = tp_is_admin();
         .phone-actions .btn-record { padding: 2px 7px; font-size: 0.75rem; border-radius: 6px; text-decoration: none; flex: 0 0 auto; }
         button.phone-link, button.transmitted-link { border: 0; background: none; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
         .table-phone { margin-top: 5px; font-size: 0.85rem; }
+        .recordings-block { padding: 9px 11px; min-width: 0; }
+        .recordings-toggle {
+            display: flex; align-items: center; justify-content: space-between;
+            width: 100%; gap: 8px; padding: 2px 0; border: 0;
+            background: none; color: var(--text); font: inherit;
+            font-size: 0.9rem; font-weight: 600; text-align: left;
+            cursor: pointer;
+        }
+        .recordings-toggle:hover { text-decoration: underline; }
+        .recordings-toggle .recordings-count { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+        .recordings-list { display: grid; gap: 9px; padding-top: 9px; }
+        .recordings-row { display: grid; gap: 4px; min-width: 0; }
+        .recordings-label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+        .recordings-player-slot { min-width: 0; }
+        .recordings-player-slot audio { display: block; width: 100%; max-width: 100%; height: 40px; }
+        .item-table .recordings-block { margin-top: 8px; max-width: 340px; }
         .place-setup-inner {
             display: flex;
             align-items: center;
@@ -1996,6 +2084,8 @@ $isAdmin = tp_is_admin();
     let audioContext = null;
     let lastSeenIds = new Set();
     const seenIncomingSmsKeys = new Set();
+    const openRecordingFiles = new Set();
+    const recordingPlayers = new Map();
     let initialized = false;
     let lastEntries = [];
     let lastBookmarkUrl = '';
@@ -2548,6 +2638,67 @@ $isAdmin = tp_is_admin();
             </div>`;
     }
 
+    function createRecordings(entry) {
+        const clips = Array.isArray(entry.recordings) ? entry.recordings : [];
+        if (!clips.length) return '';
+        const file = String(entry.file || '');
+        const expanded = openRecordingFiles.has(file);
+        const clipsHtml = expanded
+            ? `<div class="recordings-list">${clips.map(clip => `
+                <div class="recordings-row">
+                    <span class="recordings-label">${escapeHtml(clip.label)}</span>
+                    <div class="recordings-player-slot"
+                         data-recording-key="${escapeHtml(file + '::' + clip.file)}"
+                         data-recording-url="${escapeHtml(clip.url)}"
+                         data-recording-label="${escapeHtml(clip.label)}"></div>
+                </div>`).join('')}</div>`
+            : '';
+        return `<div class="detail-block recordings-block">
+            <button class="recordings-toggle" type="button" data-toggle-recordings="${escapeHtml(file)}" aria-expanded="${expanded}">
+                <span>🎧 Originalaufnahmen <span class="recordings-count">(${clips.length})</span></span>
+                <span aria-hidden="true">${expanded ? '▴' : '▾'}</span>
+            </button>
+            ${clipsHtml}
+        </div>`;
+    }
+
+    // Reuse real HTMLMediaElement instances across 5-second polling rerenders.
+    // Recreating them on every refresh would stop playback and reset its position.
+    function syncRecordingPlayers() {
+        const active = new Set();
+        document.querySelectorAll('[data-recording-key]').forEach(slot => {
+            const key = slot.getAttribute('data-recording-key');
+            const url = slot.getAttribute('data-recording-url');
+            if (!key || !url) return;
+            let player = recordingPlayers.get(key);
+            if (!player || player.getAttribute('src') !== url) {
+                if (player) player.pause();
+                player = document.createElement('audio');
+                player.controls = true;
+                player.preload = 'none';
+                player.src = url;
+                player.setAttribute('aria-label', slot.getAttribute('data-recording-label') || 'Originalaufnahme');
+                player.addEventListener('error', () => {
+                    showMessage('Originalaufnahme nicht erreichbar. recordings-Freigabe und Dateirechte prüfen.', true);
+                });
+                player.addEventListener('play', () => {
+                    recordingPlayers.forEach(other => {
+                        if (other !== player && !other.paused) other.pause();
+                    });
+                });
+                recordingPlayers.set(key, player);
+            }
+            slot.appendChild(player);
+            active.add(key);
+        });
+        for (const [key, player] of recordingPlayers) {
+            if (!active.has(key)) {
+                player.pause();
+                recordingPlayers.delete(key);
+            }
+        }
+    }
+
     function createLeftExtras(entry) {
         const isSummaryOpen = openSummaryFiles.has(String(entry.file || ''));
         const summaryBlock = entry.summary
@@ -2557,6 +2708,7 @@ $isAdmin = tp_is_admin();
         const transmittedNode = createPhoneActions(transmittedValue, entry.transmitted_phone_href, entry.transmitted_phone_raw, 'transmitted-link');
         return `
             ${summaryBlock}
+            ${createRecordings(entry)}
             <div class="transmitted-row"><strong>Übermittelte Telefonnummer:</strong> ${transmittedNode}</div>
             ${createCommentItems(entry)}
             ${createCommentEditor(entry)}
@@ -2621,7 +2773,7 @@ $isAdmin = tp_is_admin();
                 ${area === 'middle' || area === 'right' || area === 'trash' ? createSelectionControl(area, entry, false) : ''}
                 ${createHeader(entry)}
                 <div class="card-body ${bodyClass}" title="${escapeHtml(entry.body || '')}">${escapeHtml(entry.body || '—')}</div>
-                ${area === 'left' ? createLeftExtras(entry) : createReceivedSmsHistory(entry)}
+                ${area === 'left' ? createLeftExtras(entry) : createRecordings(entry) + createReceivedSmsHistory(entry)}
                 ${deletedExtra}
                 ${createCardActions(entry, area)}
             </article>`;
@@ -2670,7 +2822,7 @@ $isAdmin = tp_is_admin();
                             <td>${createSelectionControl(area, entry, true)}</td>
                             <td>${escapeHtml(entry.category_label || '—')}</td>
                             <td class="table-patient"><div class="table-name">${name}${birth}</div><div class="table-received">${escapeHtml(entry.received_at_display || '—')}</div>${t2medEnabled ? `<div class="table-phone">${createPhoneActions(entry.telephone_display, entry.telephone_href, entry.telephone_raw)}</div>` : ''}</td>
-                            <td><div class="table-preview${area === 'middle' || area === 'right' ? ' table-preview-clamped' : ''}" title="${escapeHtml(entry.body || '—')}">${escapeHtml(entry.body || '—')}</div>${createReceivedSmsHistory(entry)}</td>
+                            <td><div class="table-preview${area === 'middle' || area === 'right' ? ' table-preview-clamped' : ''}" title="${escapeHtml(entry.body || '—')}">${escapeHtml(entry.body || '—')}</div>${createRecordings(entry)}${createReceivedSmsHistory(entry)}</td>
                             ${hasDeletedCol ? `<td class="table-received">${escapeHtml(entry.deleted_at_display || '—')}</td>` : ''}
                             <td>${tableActionButtons(entry, area)}</td>
                         </tr>`;
@@ -2753,6 +2905,7 @@ $isAdmin = tp_is_admin();
         renderStats(lastEntries);
         updateViewButtons();
         applyVisibilitySettings();
+        syncRecordingPlayers();
         restoreTransientState(transient);
     }
 
@@ -3174,6 +3327,16 @@ $isAdmin = tp_is_admin();
         const selectInput = event.target.closest('[data-select-area][data-select-file]');
         if (selectInput) {
             setSelection(selectInput.getAttribute('data-select-area') || '', selectInput.getAttribute('data-select-file') || '', !!selectInput.checked);
+            return;
+        }
+        const toggleRecordingsButton = event.target.closest('[data-toggle-recordings]');
+        if (toggleRecordingsButton) {
+            event.preventDefault();
+            const file = String(toggleRecordingsButton.getAttribute('data-toggle-recordings') || '');
+            if (!file) return;
+            if (openRecordingFiles.has(file)) openRecordingFiles.delete(file);
+            else openRecordingFiles.add(file);
+            render(lastEntries);
             return;
         }
         const toggleCommentButton = event.target.closest('[data-toggle-comment]');

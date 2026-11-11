@@ -19,7 +19,8 @@ const net = require('node:net');
         }
         let source = fs.readFileSync(path.join(site, 'telepraxis-app.php'), 'utf8');
         source = source.replace('const TELEPRAXIS_T2MED_ENABLED = false;', 'const TELEPRAXIS_T2MED_ENABLED = true;')
-            .replace("const TELEPRAXIS_T2MED_BASE_URL = '';", "const TELEPRAXIS_T2MED_BASE_URL = 'http://middleware.example:8765';");
+            .replace("const TELEPRAXIS_T2MED_BASE_URL = '';", "const TELEPRAXIS_T2MED_BASE_URL = 'http://middleware.example:8765';")
+            .replace("const TELEPRAXIS_RECORDINGS_BASE_URL = '';", "const TELEPRAXIS_RECORDINGS_BASE_URL = 'recordings';");
         fs.writeFileSync(path.join(site, 'telepraxis-app.php'), source);
         fs.writeFileSync(path.join(site, 'sms-credentials.json'), JSON.stringify({default_provider: 'none'}));
         const entry = {
@@ -159,6 +160,37 @@ const net = require('node:net');
         await ready(base);
         assert.equal(await page.locator('.btn-record').count(), 0);
         assert.match(await page.locator('#left-column a.phone-link').getAttribute('href'), /^tel:/);
+        // Multiple recordings of one prescription must render independently.
+        const callId = '20261107_143025_123456';
+        const audioRecord = {
+            received_at: '2026-11-07T14:30:25+01:00',
+            typ: 'rezeptbestellung',
+            payload: {
+                typ: 'rezeptbestellung', telefon: '+493055501113', medikamente: 'Testmedikament A, Testmedikament B',
+                _kienzlefon: {
+                    vorgang_id: callId,
+                    audio: [
+                        {feld:'vorname',datei:'audio/vorname.wav',datei_vorhanden:true,status:'transcribed'},
+                        {feld:'medikamente',datei:'audio/medikament-01.wav',index:1,datei_vorhanden:true,status:'transcribed'},
+                        {feld:'medikamente',datei:'audio/medikament-02.wav',index:2,datei_vorhanden:true,status:'transcribed'}
+                    ]
+                }
+            },
+            app: {status:'in_bearbeitung',status_updated_benutzer:'Julia',status_updated_arbeitsplatz:'empfang-1',comments:[]}
+        };
+        fs.writeFileSync(path.join(site, 'inbox', callId + '.json'), JSON.stringify(audioRecord));
+        await ready(base + '?benutzer=Julia&arbeitsplatz=empfang-1');
+        const recordingCard = page.locator(`#left-column article[data-entry-file="${callId}.json"]`);
+        await recordingCard.locator('[data-toggle-recordings]').click();
+        assert.deepEqual(await recordingCard.locator('.recordings-label').allTextContents(), ['Vorname', 'Medikament 1', 'Medikament 2']);
+        assert.equal(await recordingCard.locator('audio[controls]').count(), 3);
+        assert.equal(await recordingCard.locator('audio').nth(2).getAttribute('src'), `recordings/${callId}/audio/medikament-02.wav`);
+        // Polling every 5 s must preserve the actual media element and its playback position.
+        await page.evaluate(() => { window.__recordingPlayerBeforeRefresh = document.querySelector('.recordings-player-slot audio'); });
+        await page.waitForResponse(response => response.url().includes('ajax=list'), {timeout: 12000});
+        assert.equal(await page.evaluate(() => document.querySelector('.recordings-player-slot audio') === window.__recordingPlayerBeforeRefresh), true);
+        await recordingCard.locator('[data-toggle-recordings]').click();
+        assert.equal(await recordingCard.locator('audio').count(), 0);
         assert.deepEqual(errors, []);
         assert.deepEqual(external, [], 'No external requests may be made');
         console.log('PASS: bookmarks, storage, ownership, URLs, Akte, tables, polling focus and eight viewport sizes; no external requests.');
