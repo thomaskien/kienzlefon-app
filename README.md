@@ -72,10 +72,15 @@ erreichbar sein. Eine zusätzliche Middleware-Konfiguration in der Oberfläche
 ist nicht nötig.
 
 - **Telefonnummer anklicken:** `/waehlen?client_id=<Platz>&telefon=<Nummer>&sofort=1`.
-- Kleiner Knopf **Akte** daneben: `/patient-oeffnen?client_id=<Platz>&telefon=<Nummer>`.
+- Kleiner Knopf **Akte** daneben: `/patient-oeffnen?client_id=<Platz>&telefon=<Nummer>&auto_close=1`.
 - Beide Aktionen sind auch in den Tabellen verfügbar; in Bearbeitung zusätzlich
   bei der übermittelten Telefonnummer, jeweils mit der danebenstehenden Nummer.
-- Die Links öffnen einen neuen Tab, damit die App geöffnet bleibt. Sie werden
+- Die Links öffnen einen neuen Tab, damit die App geöffnet bleibt. Beim Aktenaufruf
+  bittet `auto_close=1` eine entsprechend aktualisierte Middleware, den Tab
+  **nur nach erfolgreicher automatischer GDT-Übergabe** wieder zu schließen.
+  Bei mehrdeutigen Treffern oder Fehlern bleibt er für die Auswahl bzw. Diagnose offen.
+  Ob `window.close()` funktioniert, hängt von den Browserregeln für neu geöffnete
+  Tabs ab; andernfalls kann der Tab manuell geschlossen werden. Sie werden
   ausschließlich durch einen Klick aufgerufen. Internationales `+` wird als
   `%2B` kodiert; Benutzer wird nicht an die Middleware gesendet.
 - Bei fehlendem Platz oder ungültiger Konfiguration erscheint ein Hinweis.

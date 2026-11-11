@@ -2441,6 +2441,7 @@ $isAdmin = tp_is_admin();
             url.searchParams.set('client_id', currentWorkplace());
             url.searchParams.set('telefon', phone);
             if (action === 'waehlen') url.searchParams.set('sofort', '1');
+            if (action === 'patient-oeffnen') url.searchParams.set('auto_close', '1');
             return url.toString();
         } catch (error) {
             return '';

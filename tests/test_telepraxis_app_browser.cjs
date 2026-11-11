@@ -90,6 +90,8 @@ const net = require('node:net');
         }
         assert.equal(call.searchParams.get('sofort'), '1');
         assert.equal(record.searchParams.has('sofort'), false);
+        assert.equal(record.searchParams.get('auto_close'), '1');
+        assert.equal(call.searchParams.has('auto_close'), false);
         assert.equal(await page.locator('#left-column .card-header-box .btn-record').textContent(), 'Akte');
         // Polling must preserve the open comment, draft, focus and selection.
         await page.locator('#left-column [data-toggle-comment]').click();
