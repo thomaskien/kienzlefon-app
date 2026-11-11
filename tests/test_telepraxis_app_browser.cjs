@@ -102,6 +102,10 @@ const net = require('node:net');
         // New and completed table UI continues working, with a compact record link.
         await page.locator('[data-view-target="middle"][data-view-mode="table"]').click();
         assert.equal(await page.locator('#middle-body .btn-record').count(), 1);
+        const middleRowButtons = page.locator('#middle-body .table-actions-middle button');
+        assert.deepEqual(await middleRowButtons.allTextContents(), ['Dringend', 'Bearbeiten']);
+        assert.equal(await middleRowButtons.nth(1).getAttribute('data-status'), 'in_bearbeitung');
+        assert.equal(await page.locator('#middle-body .table-actions-middle').evaluate(el => getComputedStyle(el).flexDirection), 'column');
         // Bookmarks use drafts, allowing one field to be deliberately cleared.
         await page.locator('#menu-toggle-btn').click();
         await page.locator('#bookmark-link-btn').click();
@@ -154,6 +158,14 @@ const net = require('node:net');
                 await page.screenshot({path: path.join(process.env.V36_SCREENSHOT_DIR, `v36-${width}.png`), fullPage: false});
             }
         }
+        // The table button transfers the entry to the current user's work list.
+        await ready(base + '?benutzer=Julia&arbeitsplatz=empfang-2');
+        await page.locator('[data-view-target="middle"][data-view-mode="table"]').click();
+        await page.locator('#middle-body .table-actions-middle [data-action="set_status"][data-status="in_bearbeitung"]').click();
+        await page.waitForFunction(() => document.querySelectorAll('#middle-body .table-actions-middle').length === 0);
+        const transferredEntry = JSON.parse(fs.readFileSync(path.join(site, 'inbox', 'other.json'), 'utf8'));
+        assert.equal(transferredEntry.app.status, 'in_bearbeitung');
+        assert.equal(transferredEntry.app.status_updated_benutzer, 'Julia');
         // Disabled middleware restores tel links and removes record actions.
         fs.writeFileSync(path.join(site, 'telepraxis-app.php'), source.replace('const TELEPRAXIS_T2MED_ENABLED = true;', 'const TELEPRAXIS_T2MED_ENABLED = false;'));
         await ready(base);
