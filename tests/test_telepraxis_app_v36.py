@@ -41,6 +41,10 @@ class TelepraxisAppV36Tests(unittest.TestCase):
             count=1,
         )
         self.assertEqual(replacements, 1)
+        source = source.replace(
+            "const TELEPRAXIS_RECORDINGS_BASE_URL = '';",
+            "const TELEPRAXIS_RECORDINGS_BASE_URL = 'recordings';",
+        )
         app.write_text(source, encoding="utf-8")
 
         self.queue_database = self.root / "queue" / "outbox.sqlite"
@@ -171,6 +175,44 @@ require './telepraxis-app.php';
             }
         )
         self.assertEqual(code, 200, response)
+
+    def test_recordings_follow_audio_metadata_with_medication_indices(self):
+        call_id = "20261107_143025_123456"
+        self.card = self.site / "inbox" / (call_id + ".json")
+        entry = copy.deepcopy(self.base_entry)
+        entry["payload"]["_kienzlefon"] = {
+            "vorgang_id": call_id,
+            "audio": [
+                {"feld": "vorname", "datei": "audio/vorname.wav", "status": "transcribed", "datei_vorhanden": True},
+                {"feld": "medikamente", "datei": "audio/medikament-01.wav", "index": 1, "status": "transcribed", "datei_vorhanden": True},
+                {"feld": "medikamente", "datei": "audio/medikament-02.wav", "index": 2, "status": "transcribed", "datei_vorhanden": True},
+                {"feld": "medikamente", "datei": "audio/medikament-02.wav", "index": 2, "status": "transcribed", "datei_vorhanden": True},
+                {"feld": "grund", "datei": "audio/grund.wav", "status": "empty", "datei_vorhanden": True},
+                {"feld": "telefon", "datei": "audio/telefon.wav", "status": "transcribed", "datei_vorhanden": False},
+                {"feld": "grund", "datei": "audio/../call.json", "status": "transcribed", "datei_vorhanden": True},
+                {"feld": "grund", "datei": "audio/../../outside.wav", "status": "transcribed", "datei_vorhanden": True},
+            ],
+        }
+        self.write_card(entry)
+        recordings = self.card_view()["recordings"]
+        self.assertEqual(
+            [r["label"] for r in recordings],
+            ["Vorname", "Medikament 1", "Medikament 2"],
+        )
+        self.assertEqual(
+            [r["url"] for r in recordings],
+            [
+                f"recordings/{call_id}/audio/vorname.wav",
+                f"recordings/{call_id}/audio/medikament-01.wav",
+                f"recordings/{call_id}/audio/medikament-02.wav",
+            ],
+        )
+        entry["payload"]["_kienzlefon"]["vorgang_id"] = "20261107_143025_654321"
+        self.write_card(entry)
+        self.assertEqual(self.card_view()["recordings"], [])
+
+    def test_recordings_missing_metadata_keeps_legacy_app_unchanged(self):
+        self.assertEqual(self.card_view()["recordings"], [])
 
     def test_user_and_workplace_are_stored_and_returned_separately(self):
         user = "Dr. " + ("Ä" * 60)
