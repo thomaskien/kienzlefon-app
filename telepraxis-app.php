@@ -1543,6 +1543,11 @@ $isAdmin = tp_is_admin();
             justify-content: flex-end;
             flex-wrap: wrap;
         }
+        .table-actions-middle {
+            flex-direction: column;
+            flex-wrap: nowrap;
+            align-items: stretch;
+        }
         .card {
             background: var(--panel);
             border: 1px solid var(--panel-border);
@@ -2634,7 +2639,7 @@ $isAdmin = tp_is_admin();
     function tableActionButtons(entry, area) {
         const file = escapeHtml(entry.file || '');
         if (area === 'middle') {
-            return `<div class="table-actions"><button class="btn ${entry.urgent ? 'btn-danger' : ''}" data-action="toggle_urgent" data-file="${file}">Dringend</button></div>`;
+            return `<div class="table-actions table-actions-middle"><button class="btn ${entry.urgent ? 'btn-danger' : ''}" data-action="toggle_urgent" data-file="${file}">Dringend</button><button class="btn btn-primary" data-action="set_status" data-status="in_bearbeitung" data-file="${file}">Bearbeiten</button></div>`;
         }
         if (area === 'right') {
             return `<div class="table-actions"><button class="btn btn-primary" data-action="set_status" data-status="neu" data-file="${file}">Wiederherstellen</button><button class="btn btn-danger" data-action="soft_delete" data-file="${file}">Löschen</button></div>`;
