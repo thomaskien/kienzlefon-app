@@ -3,6 +3,7 @@
 #
 # Version 1.0 (2026-09-29)
 # Changelog:
+# - 19.11.2026: Beim Aufruf aus dem Modul die mitgelieferte Paketquelle verwenden.
 # - 19.11.2026: Vorhandene Abrufkanäle mit Audio-Helfer, Konfigurationserhalt und Rollback aktualisieren.
 # - SMS-Empfangsmodule im selben Update wie Worker und Webapp pruefen und installieren.
 # - App 3.7: Telefoniedateien ausliefern und bestehende App-Optionen erhalten.
@@ -14,6 +15,15 @@ set -euo pipefail
 if ! command -v python3 >/dev/null 2>&1; then
     echo "Fehler: python3 ist erforderlich." >&2
     exit 1
+fi
+
+package_dir="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+if [[ -f "$package_dir/docs/INSTALLER.md" || -f "$package_dir/scripts/pack.sh" ]]; then
+    use_package=1
+    for option in "$@"; do
+        case "$option" in --ref|--ref=*|--source-dir|--source-dir=*) use_package=0 ;; esac
+    done
+    if (( use_package )); then set -- --source-dir "$package_dir" "$@"; fi
 fi
 
 # Keep stdin available for the operator's confirmation.

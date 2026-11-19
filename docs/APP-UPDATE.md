@@ -59,7 +59,7 @@ Versionsnummer und Produktname stammen aus diesem Quellstand.
 
 ## Lokaler Quellstand
 
-Auf dem Zielsystem aus dem vollstaendigen Quellverzeichnis ausfuehren. Quelle
+Im entpackten App-Paket verwendet der Updater automatisch die mitgelieferten Dateien. Mit `--source-dir` kann ein anderes vollstaendiges Quellverzeichnis gewaehlt werden. Quelle
 und installierter Webroot muessen getrennte Verzeichnisse sein:
 
 ```sh

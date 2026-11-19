@@ -6,6 +6,7 @@
 # von Dr. Thomas Kienzle / ChatGPT
 #
 # Changelog
+# 2026-11-19: Praxisserver mit SSH-Abholer oder lokaler Kienzlefon-Inbox aus dem Modulmenü installieren.
 # 2026-11-18: Paketquelle vorab pruefen; Schluessel separat fuer das Fon-Setup vorbereiten.
 # 2026-11-18 (Version unveraendert: v1.8)
 # - installiert Telefonie-Proxy, Browsermodul und Schema fuer App 3.7
@@ -88,12 +89,14 @@ need_cmd() {
 }
 
 install_php_extension_packages() {
+  local packages=(php-curl php-xml php-sqlite3)
+  if (( $1 )); then packages+=(python3-cryptography jq openssh-client openssl); fi
   if command -v apt-get >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y php-curl php-xml php-sqlite3 python3-cryptography jq openssh-client openssl
+    apt-get install -y "${packages[@]}"
   else
-    echo "Hinweis: apt-get nicht gefunden. Bitte PHP-Erweiterungen, OpenSSH-Client, OpenSSL, jq und Python-cryptography manuell installieren."
+    echo "Bitte benötigte Pakete auf diesem System bereitstellen: ${packages[*]}"
   fi
 }
 
@@ -119,10 +122,12 @@ verify_php_extensions() {
 }
 
 stage_programs() {
-  local source_dir="$1" name
+  local source_dir="$1" with_fetch="$2" name
+  local files=("${WEB_FILES[@]}")
+  if (( with_fetch )); then files+=("$FETCH_FILE" "$AUDIO_HELPER"); fi
   SOURCE_STAGE="$(mktemp -d)"
   trap 'rm -rf -- "$SOURCE_STAGE"' EXIT
-  for name in "${WEB_FILES[@]}" "$FETCH_FILE" "$AUDIO_HELPER"; do
+  for name in "${files[@]}"; do
     if [[ -n "$source_dir" ]]; then
       if [[ ! -f "$source_dir/$name" || -L "$source_dir/$name" ]]; then
         echo "Regulaere Paketdatei fehlt: $source_dir/$name" >&2
@@ -136,7 +141,7 @@ stage_programs() {
     fi
     [[ -s "$SOURCE_STAGE/$name" ]] || { echo "Leere Programmdatei: $name" >&2; return 1; }
   done
-  bash -n "$SOURCE_STAGE/$FETCH_FILE"
+  if (( with_fetch )); then bash -n "$SOURCE_STAGE/$FETCH_FILE"; fi
   python3 -m json.tool "$SOURCE_STAGE/telepraxis-telephony-schema.json" >/dev/null
 }
 
@@ -211,6 +216,9 @@ ensure_user() {
   local user="$1"
   local home="$2"
 
+  if [[ "$user" == "$WEB_USER" || "$(id -u "$user" 2>/dev/null)" == 0 ]]; then
+    echo "Bitte einen eigenen, unprivilegierten Benutzer angeben." >&2; return 1
+  fi
   if id "$user" >/dev/null 2>&1; then
     echo "Benutzer $user existiert bereits, verwende ihn weiter."
     usermod -d "$home" "$user" >/dev/null 2>&1 || true
@@ -224,11 +232,9 @@ ensure_user() {
 ensure_dirs() {
   local user="$1"
   local shared_group="$2"
-  local pull_dir="$3"
-  local inbox_dir="$4"
-  local config_dir="$5"
+  local inbox_dir="$3"
+  local config_dir="$4"
 
-  install -d -o "$user" -g "$user" -m 0750 "$pull_dir"
   install -d -o "$user" -g "$shared_group" -m 2770 "$inbox_dir"
   install -d -o "$user" -g "$shared_group" -m 2770 "$config_dir"
 
@@ -320,13 +326,18 @@ generate_decrypt_keypair() (
   chmod 0644 "$public"
 )
 
-prepare_keys() {
-  local user="$1" group="$2" base="$3" ssh_key="$4" private="$5" public="$6"
+prepare_account() {
+  local user="$1" group="$2" base="$3"
   ensure_group "$group"
   install -d -o root -g root -m 0755 "$BASE_ROOT"
   ensure_user "$user" "$base"
-  [[ ! -L "$base" && ! -L "$base/.ssh" ]] || { echo "Symlink im Schluesselpfad: $base" >&2; return 1; }
+  [[ ! -L "$base" ]] || { echo "Symlink im Benutzerverzeichnis: $base" >&2; return 1; }
   install -d -o "$user" -g "$group" -m 0710 "$base"
+}
+
+prepare_keys() {
+  local user="$1" base="$2" ssh_key="$3" private="$4" public="$5"
+  [[ ! -L "$base/.ssh" ]] || { echo "Symlink im SSH-Verzeichnis." >&2; return 1; }
   install -d -o "$user" -g "$user" -m 0700 "$base/.ssh"
 
   # Das Home gehoert dem Kanalbenutzer. Dort mit seinen Rechten arbeiten.
@@ -524,7 +535,13 @@ show_summary() {
   echo "Fertig."
   echo "Lokaler Benutzer:       $user"
   echo "Freigabegruppe:         $shared_group"
-  echo "Quellserver:            $source_user@$source_host:$source_port"
+  if [[ -n "$fetch_file" ]]; then
+    echo "Quellserver:            $source_user@$source_host:$source_port"
+    echo "Fetch-Script:           $fetch_file"
+    echo "Dienst:                 $service_name"
+  else
+    echo "Kienzlefon-Direktablage: Als Ausgabeverzeichnis die lokale Inbox wählen."
+  fi
   echo "Lokale Basis:           $base_dir"
   echo "Lokale Inbox:           $inbox_dir"
   echo "Lokale Config:          $config_dir"
@@ -532,8 +549,6 @@ show_summary() {
   echo "SMS-Funktionsdatei:     $sms_lib_file"
   echo "SMS-Konfiguration:      $sms_config_file"
   echo "SMS-Credentials:        $sms_credentials"
-  echo "Fetch-Script:           $fetch_file"
-  echo "Dienst:                 $service_name"
   echo
   echo "Adminpasswoerter:"
   echo "----------------------------------------------------------------"
@@ -541,30 +556,32 @@ show_summary() {
   echo "sms-config.php:          $sms_config_password"
   echo "----------------------------------------------------------------"
   echo
-  echo "SSH-Public-Key fuer das Quellsystem (authorized_keys):"
-  echo "----------------------------------------------------------------"
-  cat "$ssh_pub"
-  echo "----------------------------------------------------------------"
-  echo
-  echo "RSA-Public-Key fuer Fon und telepraxis-receive-<ssh-benutzer>.php auf dem Quellsystem:"
-  echo "----------------------------------------------------------------"
-  cat "$decrypt_pub"
-  echo "----------------------------------------------------------------"
-  echo
-  echo "Hinweise:"
-  echo "- Auf dem Quellsystem den obigen SSH-Public-Key in authorized_keys des dortigen SSH-Benutzers eintragen."
-  echo "- Auf dem Quellsystem den obigen RSA-Public-Key in die passende telepraxis-receive-<ssh-benutzer>.php einsetzen."
+  if [[ -n "$fetch_file" ]]; then
+    echo "SSH-Public-Key fuer das Quellsystem (authorized_keys):"
+    echo "----------------------------------------------------------------"
+    cat "$ssh_pub"
+    echo "----------------------------------------------------------------"
+    echo
+    echo "RSA-Public-Key fuer Fon und telepraxis-receive-<ssh-benutzer>.php auf dem Quellsystem:"
+    echo "----------------------------------------------------------------"
+    cat "$decrypt_pub"
+    echo "----------------------------------------------------------------"
+    echo
+    echo "Hinweise:"
+    echo "- Auf dem Quellsystem den obigen SSH-Public-Key in authorized_keys des dortigen SSH-Benutzers eintragen."
+    echo "- Den RSA-Public-Key am Kienzlefon-Verschlüsseler hinterlegen. Bei Formularempfang auch dem Quellserver-Setup übergeben."
+  fi
   echo "- Die lokale Inbox ist fuer ${WEB_USER} und ${user} vorbereitet."
   echo "- Die SMS-Credentials liegen ausserhalb des Webroots unter: $sms_credentials"
   echo "- sms-config.php ist ueber den normalen Webserver erreichbar und mit dem obigen Adminpasswort geschuetzt."
 }
 
 usage() {
-  echo "Aufruf: bash zielserver-vorbereiten-v1.8.sh [--source-dir VERZEICHNIS] [--user ZIELBENUTZER] [--prepare-keys]"
+  echo "Aufruf: bash zielserver-vorbereiten-v1.8.sh [--source-dir VERZEICHNIS] [--user ZIELBENUTZER] [--with-fetch | --no-fetch | --prepare-keys]"
 }
 
 main() {
-  local source_dir="" keys_only=0
+  local source_dir="" keys_only=0 with_fetch="" choice script_dir
   local target_user=""
   local shared_group=""
   local source_host=""
@@ -597,21 +614,42 @@ main() {
       --user)
         [[ "${2:-}" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Ungueltiger Zielbenutzer." >&2; return 2; }
         target_user="$2"; shift 2 ;;
+      --with-fetch|--no-fetch)
+        [[ -z "$with_fetch" ]] || { usage >&2; return 2; }
+        if [[ "$1" == --with-fetch ]]; then with_fetch=1; else with_fetch=0; fi
+        shift ;;
       --prepare-keys) keys_only=1; shift ;;
       --help|-h) usage; return 0 ;;
       *) usage >&2; return 2 ;;
     esac
   done
   require_root
-  need_cmd ssh-keygen
-  need_cmd openssl
-  need_cmd runuser
-  need_cmd flock
-  if (( ! keys_only )); then
+  if (( keys_only )); then
+    [[ "$with_fetch" != 0 ]] || { usage >&2; return 2; }
+    with_fetch=1
+  elif [[ -z "$with_fetch" && -t 0 ]]; then
+    echo "Praxisserver – Erstinstallation der Kienzlefon-App"
+    echo "  1) Mit Abholer (verschlüsselte Lieferungen per SSH)"
+    echo "  2) Ohne Abholer (Kienzlefon schreibt direkt in die lokale Inbox)"
+    while :; do
+      read -r -p "Auswahl [1]: " choice || return 1
+      case "${choice:-1}" in 1) with_fetch=1; break ;; 2) with_fetch=0; break ;; esac
+      echo "Bitte 1 oder 2 wählen." >&2
+    done
+  fi
+  with_fetch="${with_fetch:-1}"
+  if (( keys_only )); then
+    need_cmd ssh-keygen
+    need_cmd openssl
+    need_cmd runuser
+    need_cmd flock
+  else
     need_cmd python3
     need_cmd systemctl
+    script_dir="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+    if [[ -z "$source_dir" && ( -f "$script_dir/docs/INSTALLER.md" || -f "$script_dir/scripts/pack.sh" ) ]]; then source_dir="$script_dir"; fi
     if [[ -z "$source_dir" ]] && ! command -v curl >/dev/null 2>&1; then need_cmd wget; fi
-    stage_programs "$source_dir"
+    stage_programs "$source_dir" "$with_fetch"
   fi
 
   if [[ -z "$target_user" ]]; then target_user="$(ask_user)"; fi
@@ -621,13 +659,17 @@ main() {
   decrypt_private="${base_dir}/telepraxis_decrypt_private.pem"
   decrypt_public="${base_dir}/telepraxis_decrypt_public.pem"
   if (( keys_only )); then
-    prepare_keys "$target_user" "$shared_group" "$base_dir" "$ssh_key" "$decrypt_private" "$decrypt_public"
+    prepare_account "$target_user" "$shared_group" "$base_dir"
+    prepare_keys "$target_user" "$base_dir" "$ssh_key" "$decrypt_private" "$decrypt_public"
     printf 'RSA-Public-Key fuer Fon und Empfangs-PHP: %s\nSSH-Public-Key fuer den Abrufkanal: %s\n' "$decrypt_public" "${ssh_key}.pub"
     return 0
   fi
-  source_host="$(ask_default 'Quellserver Hostname/FQDN' 'kontakt.praxispi.de')"
-  source_user="$(ask_default 'SSH-Benutzer auf dem Quellsystem' "$target_user")"
-  source_port="$(ask_default 'SSH-Port auf dem Quellsystem' '22')"
+  if (( with_fetch )); then
+    source_host="$(ask_default 'Quellserver Hostname/FQDN' 'kontakt.praxispi.de')"
+    source_user="$(ask_default 'SSH-Benutzer auf dem Quellsystem' "$target_user")"
+    source_port="$(ask_default 'SSH-Port auf dem Quellsystem' '22')"
+    fetch_script="${BIN_DIR}/telepraxis_fetch_and_decrypt_${target_user}.sh"
+  fi
   ask_password_or_generate app_admin_password 'Supervisor/Adminpasswort fuer die kienzlefon app'
   ask_password_or_generate sms_config_password 'Adminpasswort fuer sms-config.php'
 
@@ -635,7 +677,6 @@ main() {
   inbox_dir="${base_dir}/inbox"
   config_dir="${base_dir}/config"
   sms_credentials="${config_dir}/sms-credentials.json"
-  fetch_script="${BIN_DIR}/telepraxis_fetch_and_decrypt_${target_user}.sh"
   app_target="${WEBROOT_DIR}/telepraxis-app.php"
   sms_lib_target="${WEBROOT_DIR}/telepraxis-sms.php"
   sms_config_target="${WEBROOT_DIR}/sms-config.php"
@@ -646,38 +687,53 @@ main() {
   local app_component
   patch_app_file "$SOURCE_STAGE/telepraxis-app.php" "$inbox_dir" "$app_admin_password"
   patch_sms_files "$SOURCE_STAGE/telepraxis-sms.php" "$SOURCE_STAGE/sms-config.php" "$sms_credentials" "$sms_config_password"
-  patch_fetch_file "$SOURCE_STAGE/$FETCH_FILE" "$source_host" "$source_user" "$source_port" "$remote_dir" "$pull_dir" "$inbox_dir" "$decrypt_private" "$ssh_key"
-  bash -n "$SOURCE_STAGE/$FETCH_FILE"
+  if (( with_fetch )); then
+    patch_fetch_file "$SOURCE_STAGE/$FETCH_FILE" "$source_host" "$source_user" "$source_port" "$remote_dir" "$pull_dir" "$inbox_dir" "$decrypt_private" "$ssh_key"
+    bash -n "$SOURCE_STAGE/$FETCH_FILE"
+  fi
 
   if command -v php >/dev/null 2>&1; then lint_web_files; fi
-  install_php_extension_packages
-  need_cmd jq
-  need_cmd scp
-  need_cmd ssh
-  python3 "$SOURCE_STAGE/$AUDIO_HELPER" --help >/dev/null || { echo "Python 3 mit cryptography fehlt." >&2; return 1; }
+  install_php_extension_packages "$with_fetch"
+  if (( with_fetch )); then
+    need_cmd ssh-keygen
+    need_cmd openssl
+    need_cmd runuser
+    need_cmd flock
+    need_cmd jq
+    need_cmd scp
+    need_cmd ssh
+    python3 "$SOURCE_STAGE/$AUDIO_HELPER" --help >/dev/null || { echo "Python 3 mit cryptography fehlt." >&2; return 1; }
+  fi
   need_cmd php
   verify_php_extensions
   lint_web_files
 
-  prepare_keys "$target_user" "$shared_group" "$base_dir" "$ssh_key" "$decrypt_private" "$decrypt_public"
-  ensure_dirs "$target_user" "$shared_group" "$pull_dir" "$inbox_dir" "$config_dir"
+  prepare_account "$target_user" "$shared_group" "$base_dir"
+  if (( with_fetch )); then
+    prepare_keys "$target_user" "$base_dir" "$ssh_key" "$decrypt_private" "$decrypt_public"
+    install -d -o "$target_user" -g "$target_user" -m 0750 "$pull_dir"
+  fi
+  ensure_dirs "$target_user" "$shared_group" "$inbox_dir" "$config_dir"
   ensure_sms_credentials_file "$target_user" "$shared_group" "$sms_credentials"
-  mkdir -p "$WEBROOT_DIR" "$BIN_DIR"
+  mkdir -p "$WEBROOT_DIR"
   for app_component in "${WEB_FILES[@]}"; do
     backup_if_exists "${WEBROOT_DIR}/${app_component}"
     install -m 0644 "$SOURCE_STAGE/$app_component" "$WEBROOT_DIR/$app_component"
   done
 
-  backup_if_exists "$BIN_DIR/$AUDIO_HELPER"
-  install -m 0644 "$SOURCE_STAGE/$AUDIO_HELPER" "$BIN_DIR/$AUDIO_HELPER"
-  backup_if_exists "$fetch_script"
-  install -m 0755 -o "$target_user" -g "$target_user" "$SOURCE_STAGE/$FETCH_FILE" "$fetch_script"
+  if (( with_fetch )); then
+    mkdir -p "$BIN_DIR"
+    backup_if_exists "$BIN_DIR/$AUDIO_HELPER"
+    install -m 0644 "$SOURCE_STAGE/$AUDIO_HELPER" "$BIN_DIR/$AUDIO_HELPER"
+    backup_if_exists "$fetch_script"
+    install -m 0755 -o "$target_user" -g "$target_user" "$SOURCE_STAGE/$FETCH_FILE" "$fetch_script"
 
-  create_service_file "$service_file" "$target_user" "$fetch_script"
-  chmod 0644 "$service_file"
+    create_service_file "$service_file" "$target_user" "$fetch_script"
+    chmod 0644 "$service_file"
 
-  systemctl daemon-reload
-  systemctl enable --now "$service_name"
+    systemctl daemon-reload
+    systemctl enable --now "$service_name"
+  fi
 
   maybe_restart_webstack
 

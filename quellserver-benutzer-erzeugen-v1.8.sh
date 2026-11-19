@@ -5,6 +5,7 @@
 # von Dr. Thomas Kienzle / ChatGPT
 #
 # Changelog
+# 2026-11-19: Reinen Fon-Abrufkanal oder zusätzlichen Formularempfang aus dem Modulmenü einrichten.
 # 2026-11-18: Empfangs- und Kontaktvorlage gemeinsam aus dem Komponentenpaket vorbereiten.
 # v1.8
 # - setzt das SSH-Home auf owner=<ssh-benutzer>, group=tp-<ssh-benutzer>, mode=0710
@@ -180,6 +181,9 @@ ensure_user() {
   local user="$1"
   local home="$2"
 
+  if [[ "$user" == "$WEB_USER" || "$(id -u "$user" 2>/dev/null)" == 0 ]]; then
+    echo "Bitte einen eigenen, unprivilegierten Benutzer angeben." >&2; return 1
+  fi
   if id "$user" >/dev/null 2>&1; then
     echo "Benutzer $user existiert bereits, verwende ihn weiter."
     usermod -d "$home" "$user" >/dev/null 2>&1 || true
@@ -193,19 +197,16 @@ ensure_user() {
 setup_dirs_and_ssh() {
   local user="$1"
   local shared_group="$2"
-  local ssh_pubkey="$3"
+  local ssh_pubkey="$3" with_forms="$4"
   local home="${BASE_ROOT}/${user}"
   local ssh_dir="${home}/.ssh"
   local auth_keys="${ssh_dir}/authorized_keys"
   local inbox="${home}/inbox"
   local state_dir="${STATE_ROOT}/${user}"
 
-  install -d -o root -g root -m 0755 "$BASE_ROOT"
-  install -d -o root -g root -m 0755 "$STATE_ROOT"
   install -d -o "$user" -g "$shared_group" -m 0710 "$home"
   install -d -o "$user" -g "$user" -m 0700 "$ssh_dir"
   install -d -o "$user" -g "$shared_group" -m 2770 "$inbox"
-  install -d -o root -g "$shared_group" -m 2770 "$state_dir"
 
   touch "$auth_keys"
   if ! grep -Fqx "$ssh_pubkey" "$auth_keys"; then
@@ -214,24 +215,25 @@ setup_dirs_and_ssh() {
   chown "$user:$user" "$auth_keys"
   chmod 0600 "$auth_keys"
 
-  usermod -a -G "$shared_group" "$user" || true
-  if id "$WEB_USER" >/dev/null 2>&1; then
-    usermod -a -G "$shared_group" "$WEB_USER" || true
-  fi
-
-  if command -v setfacl >/dev/null 2>&1; then
-    setfacl -m "u:${user}:rwx,g:${shared_group}:rwx" "$inbox" "$state_dir" || true
+  usermod -a -G "$shared_group" "$user"
+  # Die Inbox ist gruppenschreibbar. Quittungsablage mit den Rechten des Abrufkanals anlegen.
+  [[ ! -L "$inbox/.kienzlefon-ack" ]] || { echo "Symlink im Quittungsverzeichnis." >&2; return 1; }
+  runuser -u "$user" -- mkdir -p -m 2770 -- "$inbox/.kienzlefon-ack"
+  if (( with_forms )); then
+    install -d -o root -g root -m 0755 "$STATE_ROOT"
+    install -d -o root -g "$shared_group" -m 2770 "$state_dir"
     if id "$WEB_USER" >/dev/null 2>&1; then
-      setfacl -m "u:${WEB_USER}:rwx" "$inbox" "$state_dir" || true
-      setfacl -d -m "u:${WEB_USER}:rwx,g:${shared_group}:rwx" "$inbox" "$state_dir" || true
+      usermod -a -G "$shared_group" "$WEB_USER"
     fi
-    setfacl -d -m "u:${user}:rwx,g:${shared_group}:rwx" "$inbox" "$state_dir" || true
+    if command -v setfacl >/dev/null 2>&1; then
+      setfacl -m "u:${user}:rwx,g:${shared_group}:rwx" "$inbox" "$state_dir" || true
+      if id "$WEB_USER" >/dev/null 2>&1; then
+        setfacl -m "u:${WEB_USER}:rwx" "$inbox" "$state_dir" || true
+        setfacl -d -m "u:${WEB_USER}:rwx,g:${shared_group}:rwx" "$inbox" "$state_dir" || true
+      fi
+      setfacl -d -m "u:${user}:rwx,g:${shared_group}:rwx" "$inbox" "$state_dir" || true
+    fi
   fi
-
-  echo "SSH und Verzeichnisstruktur eingerichtet:"
-  echo "  Home : $home"
-  echo "  Inbox: $inbox"
-  echo "  State: $state_dir"
 }
 
 stage_templates() {
@@ -375,42 +377,71 @@ show_summary() {
   echo "SSH-Benutzer:   $user"
   echo "Freigabegruppe: $shared_group"
   echo "Inbox:          $inbox"
-  echo "OTP-State:      ${state_dir}/otp.sqlite"
-  echo "PHP-Datei:      $php_file"
-  echo "HTTPS-Endpoint: https://<dein-vhost-fqdn>/telepraxis-receive-${user}.php"
-  echo "Kontaktformular: $contact_file"
-  echo "Kontakt-URL:     https://<dein-vhost-fqdn>/kontakt-${user}.php"
-  echo "IONOS-Secret:   $ionos_secret"
+  echo "Quittungen:     ${inbox}/.kienzlefon-ack/"
+  if [[ -n "$php_file" ]]; then
+    echo "OTP-State:      ${state_dir}/otp.sqlite"
+    echo "PHP-Datei:      $php_file"
+    echo "HTTPS-Endpoint: https://<dein-vhost-fqdn>/telepraxis-receive-${user}.php"
+    echo "Kontaktformular: $contact_file"
+    echo "Kontakt-URL:     https://<dein-vhost-fqdn>/kontakt-${user}.php"
+    echo "IONOS-Secret:   $ionos_secret"
+  else
+    echo "Im Kienzlefon-Verschlüsseler diese Inbox als Ausgabeverzeichnis und den RSA-Public-Key des Praxisservers verwenden."
+  fi
   echo
   echo "Fetch-Quelle kuenftig:"
   echo "  $user@$(hostname -f):$inbox/"
   echo
   echo "Hinweis:"
   echo "  SSH-Home bleibt strikt unter ${BASE_ROOT}/${user}."
-  echo "  Schreibbare App-Bereiche sind getrennt: inbox und ${STATE_ROOT}/${user}."
+}
+
+usage() {
+  echo "Aufruf: bash quellserver-benutzer-erzeugen-v1.8.sh [--source-dir VERZEICHNIS] [--user SSH-BENUTZER] [--ssh-only | --with-forms]"
 }
 
 main() {
-  local source_dir=""
-  if [[ $# == 1 && ( "$1" == --help || "$1" == -h ) ]]; then
-    echo "Aufruf: bash quellserver-benutzer-erzeugen-v1.8.sh [--source-dir VERZEICHNIS]"
-    return 0
-  fi
-  if (( $# )); then
-    if [[ $# != 2 || "$1" != --source-dir || ! -d "$2" || -L "$2" ]]; then
-      echo "Erwartet: --source-dir VERZEICHNIS (regulaeres Verzeichnis)" >&2
-      return 2
-    fi
-    source_dir="$(CDPATH= cd -P -- "$2" && pwd -P)"
-  fi
+  local source_dir="" ssh_user="" with_forms="" choice script_dir
+  while (( $# )); do
+    case "$1" in
+      --source-dir)
+        [[ -n "${2:-}" && -d "$2" && ! -L "$2" ]] || { usage >&2; return 2; }
+        source_dir="$(CDPATH= cd -P -- "$2" && pwd -P)"
+        shift 2 ;;
+      --user)
+        [[ "${2:-}" =~ ^[a-z_][a-z0-9_-]*$ ]] || { usage >&2; return 2; }
+        ssh_user="$2"; shift 2 ;;
+      --ssh-only|--with-forms)
+        [[ -z "$with_forms" ]] || { usage >&2; return 2; }
+        if [[ "$1" == --ssh-only ]]; then with_forms=0; else with_forms=1; fi
+        shift ;;
+      --help|-h) usage; return 0 ;;
+      *) usage >&2; return 2 ;;
+    esac
+  done
   require_root
-  need_cmd php
-  need_cmd python3
-  need_cmd openssl
-  if [[ -z "$source_dir" ]] && ! command -v curl >/dev/null 2>&1; then need_cmd wget; fi
-  stage_templates "$source_dir"
+  need_cmd runuser
+  if [[ -z "$with_forms" && -t 0 ]]; then
+    echo "Quellserver – SSH-Abrufkanal einrichten"
+    echo "  1) Abrufkanal mit Formularempfang (Empfangs-PHP und Kontaktformular)"
+    echo "  2) Nur SSH-Abrufkanal für Kienzlefon mit Verschlüsseler"
+    while :; do
+      read -r -p "Auswahl [1]: " choice || return 1
+      case "${choice:-1}" in 1) with_forms=1; break ;; 2) with_forms=0; break ;; esac
+      echo "Bitte 1 oder 2 wählen." >&2
+    done
+  fi
+  with_forms="${with_forms:-1}"
+  if (( with_forms )); then
+    need_cmd php
+    need_cmd python3
+    need_cmd openssl
+    script_dir="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+    if [[ -z "$source_dir" && ( -f "$script_dir/docs/INSTALLER.md" || -f "$script_dir/scripts/pack.sh" ) ]]; then source_dir="$script_dir"; fi
+    if [[ -z "$source_dir" ]] && ! command -v curl >/dev/null 2>&1; then need_cmd wget; fi
+    stage_templates "$source_dir"
+  fi
 
-  local ssh_user=""
   local shared_group=""
   local ssh_pubkey=""
   local ionos_secret=""
@@ -421,34 +452,38 @@ main() {
   local target_php=""
   local contact_php=""
 
-  ssh_user="$(ask_ssh_user)"
+  if [[ -z "$ssh_user" ]]; then ssh_user="$(ask_ssh_user)"; fi
   shared_group="tp-${ssh_user}"
   ssh_pubkey="$(ask_ssh_pubkey)"
 
-  local pem="$SOURCE_STAGE/public.pem"
-  ask_public_key_pem "$SOURCE_STAGE/input.pem"
-  openssl rsa -pubin -in "$SOURCE_STAGE/input.pem" -pubout -out "$pem" 2>/dev/null || {
-    echo "Ungueltiger oeffentlicher RSA-Schluessel." >&2; return 1;
-  }
-  ionos_secret="$(ask_ionos_secret)"
-
   home="${BASE_ROOT}/${ssh_user}"
   inbox="${home}/inbox"
-  state_dir="${STATE_ROOT}/${ssh_user}"
-  otp_db="${state_dir}/otp.sqlite"
-  target_php="${WEB_ROOT}/telepraxis-receive-${ssh_user}.php"
-  contact_php="${WEB_ROOT}/kontakt-${ssh_user}.php"
+  if (( with_forms )); then
+    local pem="$SOURCE_STAGE/public.pem"
+    ask_public_key_pem "$SOURCE_STAGE/input.pem"
+    openssl rsa -pubin -in "$SOURCE_STAGE/input.pem" -pubout -out "$pem" 2>/dev/null || {
+      echo "Ungueltiger oeffentlicher RSA-Schluessel." >&2; return 1;
+    }
+    ionos_secret="$(ask_ionos_secret)"
+    state_dir="${STATE_ROOT}/${ssh_user}"
+    otp_db="${state_dir}/otp.sqlite"
+    target_php="${WEB_ROOT}/telepraxis-receive-${ssh_user}.php"
+    contact_php="${WEB_ROOT}/kontakt-${ssh_user}.php"
 
-  patch_php_file "$SOURCE_STAGE/telepraxis-receive.php" "$inbox" "$otp_db" "$pem" "$ionos_secret"
-  patch_contact_file "$SOURCE_STAGE/kontakt.php" "$otp_db" "/telepraxis-receive-${ssh_user}.php"
+    patch_php_file "$SOURCE_STAGE/telepraxis-receive.php" "$inbox" "$otp_db" "$pem" "$ionos_secret"
+    patch_contact_file "$SOURCE_STAGE/kontakt.php" "$otp_db" "/telepraxis-receive-${ssh_user}.php"
+  fi
 
   ensure_group "$shared_group"
+  install -d -o root -g root -m 0755 "$BASE_ROOT"
   ensure_user "$ssh_user" "$home"
-  setup_dirs_and_ssh "$ssh_user" "$shared_group" "$ssh_pubkey"
-  mkdir -p "$WEB_ROOT"
-  install_template "$SOURCE_STAGE/telepraxis-receive.php" "$target_php"
-  install_template "$SOURCE_STAGE/kontakt.php" "$contact_php"
-  maybe_restart_webstack
+  setup_dirs_and_ssh "$ssh_user" "$shared_group" "$ssh_pubkey" "$with_forms"
+  if (( with_forms )); then
+    mkdir -p "$WEB_ROOT"
+    install_template "$SOURCE_STAGE/telepraxis-receive.php" "$target_php"
+    install_template "$SOURCE_STAGE/kontakt.php" "$contact_php"
+    maybe_restart_webstack
+  fi
   show_summary "$ssh_user" "$shared_group" "$inbox" "$state_dir" "$target_php" "$ionos_secret" "$contact_php"
 }
 

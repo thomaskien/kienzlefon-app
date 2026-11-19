@@ -1,5 +1,8 @@
 """Prüfe die Paketschnittstellen mit lokalen Schlüssel-, Web- und Kanalverzeichnissen."""
 import os
+import pty
+import shutil
+import termios
 from pathlib import Path
 import stat
 import subprocess
@@ -41,7 +44,7 @@ event() { echo "$*" >> "$SANDBOX/events"; }
 require_root() { :; }
 ensure_group() { event group "$@"; }
 ensure_user() { event user "$@"; }
-install_php_extension_packages() { event packages; }
+install_php_extension_packages() { event packages "$@"; }
 systemctl() { event systemctl "$@"; }
 usermod() { event usermod "$@"; }
 chown() { :; }
@@ -66,6 +69,32 @@ curl() {
 wget() { event wget; return 21; }
 main "$@"
 '''
+
+
+def invoke_installer(program, host, args, answers, *, terminal=False, upstream=""):
+    command = ["bash", "-c", HARNESS, "setup-test", str(program), *map(str, args)]
+    env = {**os.environ, "SANDBOX": str(host), "TEST_UPSTREAM": str(upstream)}
+    if not terminal:
+        return subprocess.run(command, cwd=host, env=env, input=answers, text=True,
+                              capture_output=True, timeout=45)
+    master, slave = pty.openpty()
+    try:
+        settings = termios.tcgetattr(slave)
+        settings[3] &= ~termios.ECHO
+        termios.tcsetattr(slave, termios.TCSANOW, settings)
+        with subprocess.Popen(command, cwd=host, env=env, stdin=slave, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            try:
+                os.write(master, answers.encode())
+                stdout, stderr = process.communicate(timeout=45)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+            return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    finally:
+        os.close(slave)
+        os.close(master)
 
 
 class AppPackageTests(unittest.TestCase):
@@ -95,12 +124,8 @@ class AppPackageTests(unittest.TestCase):
         self.assertEqual(result.returncode == 0, success, result.stderr)
         return result
 
-    def setup_host(self, script, *args, stdin="", success=True, upstream=""):
-        result = subprocess.run(
-            ["bash", "-c", HARNESS, "setup-test", str(self.source / script), *map(str, args)],
-            cwd=self.root, env={**os.environ, "SANDBOX": str(self.host), "TEST_UPSTREAM": str(upstream)},
-            input=stdin, text=True, capture_output=True, timeout=45,
-        )
+    def setup_host(self, script, *args, stdin="", success=True, upstream="", terminal=False):
+        result = invoke_installer(self.source / script, self.host, args, stdin, terminal=terminal, upstream=upstream)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
 
@@ -132,7 +157,7 @@ class AppPackageTests(unittest.TestCase):
                 for linked in (False, True):
                     if linked:
                         file.symlink_to(ROOT / name)
-                    result = self.setup_host(script, "--source-dir", self.source, success=False)
+                    result = self.setup_host(script, success=False)
                     self.assertIn(name, result.stderr)
                     self.assertEqual(list(self.host.iterdir()), [self.host / "units"])
 
@@ -176,7 +201,7 @@ class AppPackageTests(unittest.TestCase):
         before = {p: p.read_bytes() for p in web.iterdir()}
         backup = self.root / "backups"
         checked = subprocess.run(
-            ["bash", str(self.source / UPDATER), "--webroot", str(web), "--source-dir", str(self.source),
+            ["bash", str(self.source / UPDATER), "--webroot", str(web),
              "--backup-dir", str(backup), "--check"], text=True, capture_output=True, timeout=30,
         )
         self.assertEqual(checked.returncode, 0, checked.stderr)
@@ -214,8 +239,8 @@ class AppPackageTests(unittest.TestCase):
         self.assertIn("TELEPRAXIS_AUDIO_RETENTION_DAYS = 21", app.read_text())
         self.assertEqual({p: p.read_bytes() for p in saved}, saved)
 
-        self.setup_host(CHANNEL, "--source-dir", self.source,
-                        stdin="abruf1\n" + ssh_pub.read_text() + rsa_pub.read_text() + "M\nTestPSK\n")
+        self.setup_host(CHANNEL, terminal=True,
+                        stdin="\nabruf1\n" + ssh_pub.read_text() + rsa_pub.read_text() + "M\nTestPSK\n")
         receiver = (web / "telepraxis-receive-abruf1.php").read_text()
         contact = (web / "kontakt-abruf1.php").read_text()
         self.assertIn(rsa_pub.read_text(), receiver)
@@ -232,12 +257,65 @@ class AppPackageTests(unittest.TestCase):
         self.assertEqual(rsa_pub.read_bytes(), saved[rsa_pub])
         self.assertFalse(rsa.exists())
 
-    def test_legacy_interactive_calls_use_online_templates(self):
-        self.setup_host(TARGET, upstream=self.source, stdin="ziel1\nsource.example\nabruf1\n22\nTestApp\nTestSMS\n")
+    def test_praxis_menu_local_only(self):
+        (self.source / "telepraxis-audio-delivery.py").unlink()
+        result = self.setup_host(TARGET, stdin="9\n2\npraxis\nTestApp\nTestSMS\n", terminal=True)
+        base = self.host / "srv/praxis"
+        self.assertIn("Bitte 1 oder 2", result.stderr)
+        self.assertNotIn("Quellserver Hostname", result.stderr)
+        self.assertNotIn("SSH-Benutzer auf dem Quellsystem", result.stderr)
+        self.assertNotIn("SSH-Port", result.stderr)
+        self.assertEqual({p.name for p in base.iterdir()}, {"inbox", "config"})
+        self.assertEqual({p.name for p in (self.host / "web").iterdir()}, WEB)
+        self.assertIn(str(base / "inbox"), (self.host / "web/telepraxis-app.php").read_text())
+        self.assertFalse((self.host / "bin").exists())
+        self.assertEqual(list((self.host / "units").iterdir()), [])
+        events = (self.host / "events").read_text()
+        self.assertIn("packages 0", events)
+        for action in ("daemon-reload", "enable --now", "curl", "wget"):
+            self.assertNotIn(action, events)
+
+    def test_no_fetch_option_skips_remote_setup_and_keeps_web_dependencies(self):
+        result = self.setup_host(TARGET, "--source-dir", self.source, "--user", "praxis", "--no-fetch",
+                                 stdin="TestApp\nTestSMS\n")
+        self.assertNotIn("Auswahl", result.stdout + result.stderr)
+        self.assertEqual(list((self.host / "units").iterdir()), [])
+        self.assertFalse((self.host / "srv/praxis/.ssh").exists())
+        # Simulate only apt itself, exercising the installer's actual package selections.
+        probe = 'source "$1"; apt-get() { echo "$*"; }; install_php_extension_packages "$2"'
+        for mode in ("0", "1"):
+            with self.subTest(mode=mode):
+                out = subprocess.check_output(["bash", "-c", probe, "probe", str(self.source / TARGET), mode], text=True)
+                packages = out.splitlines()[-1].split()[2:]
+                self.assertEqual(set(packages), {"php-curl", "php-xml", "php-sqlite3"} |
+                                 ({"jq", "openssh-client", "openssl", "python3-cryptography"} if mode == "1" else set()))
+
+    def test_fon_channel_menu_without_forms(self):
+        (self.source / "kontakt.php").unlink()
+        pub = "ssh-ed25519 AAAAtest Synthetic"
+        result = self.setup_host(CHANNEL, stdin=f"2\nfon\n{pub}\n", terminal=True)
+        self.assertNotIn("IONOS-Secret", result.stdout + result.stderr)
+        self.assertNotIn("PEM-Block", result.stdout + result.stderr)
+        self.setup_host(CHANNEL, "--ssh-only", "--user", "fon", stdin=pub + "\n")
+        home = self.host / "srv/fon"
+        self.assertEqual((home / ".ssh/authorized_keys").read_text(), pub + "\n")
+        self.assertTrue((home / "inbox/.kienzlefon-ack").is_dir())
+        self.assertFalse((self.host / "web").exists())
+        self.assertFalse((self.host / "srv/state").exists())
+        events = (self.host / "events").read_text()
+        for action in ("curl", "wget", "systemctl", "www-data"):
+            self.assertNotIn(action, events)
+
+    def test_standalone_scripts_keep_online_template_source(self):
+        standalone = self.root / "standalone"
+        standalone.mkdir()
+        for script in (TARGET, CHANNEL):
+            shutil.copy(self.source / script, standalone / script)
+        self.setup_host(standalone / TARGET, upstream=self.source, stdin="ziel1\nsource.example\nabruf1\n22\nTestApp\nTestSMS\n")
         base = self.host / "srv/ziel1"
         public_input = ((base / ".ssh/telepraxis_fetch_key.pub").read_text()
                         + (base / "telepraxis_decrypt_public.pem").read_text())
-        self.setup_host(CHANNEL, upstream=self.source, stdin="abruf1\n" + public_input + "A\n")
+        self.setup_host(standalone / CHANNEL, upstream=self.source, stdin="abruf1\n" + public_input + "A\n")
         self.assertEqual((self.host / "events").read_text().splitlines().count("curl"), len(WEB) + 4)
         self.assertTrue((self.host / "web/telepraxis-app.php").is_file())
         self.assertTrue((self.host / "web/telepraxis-receive-abruf1.php").is_file())

@@ -22,10 +22,7 @@ PRODUCER = "73651ee"
 FETCH = "telepraxis_fetch_and_decrypt.sh"
 
 
-def run(archive, producer_repo, root):
-    with tarfile.open(archive) as tar:
-        tar.extractall(root, filter="data")
-    component = root / "kienzlefon-app"
+def load_producer(producer_repo, root):
     snapshot = root / "producer"
     snapshot.mkdir()
     source = subprocess.check_output(["git", "-C", str(producer_repo), "archive", PRODUCER, "kienzlefon"])
@@ -33,10 +30,35 @@ def run(archive, producer_repo, root):
         tar.extractall(snapshot, filter="data")
     sys.path.insert(0, str(snapshot))
     from kienzlefon import __version__
+    assert __version__ == "2.6.0"
+
+
+def publish_case(root, timezone, identifier, emitter, *, attach=True, truncated_wav=False):
+    from kienzlefon.spool import WorkingCall
+    call = WorkingCall(root / "spool" / identifier, timezone)
+    call.audio_directory.mkdir(parents=True)
+    payload = json.loads((ROOT / "docs/vorgang-v1/beispiele/mehrere-anliegen.json").read_text())["payload"]
+    meta = payload["_kienzlefon"]
+    meta["vorgang_id"] = identifier
+    wav = call.path / meta["audio"][0]["datei"]
+    with wave.open(str(wav), "wb") as writer:
+        writer.setparams((1, 2, 16000, 0, "NONE", ""))
+        writer.writeframes(b"\x00\x01" * 160)
+    if truncated_wav:
+        wav.write_bytes(wav.read_bytes()[:-2])
+    expected = wav.read_bytes()
+    call.save(payload)
+    emitter.publish(call, payload, attach=attach)
+    return call, wav, expected
+
+
+def run(archive, producer_repo, root):
+    with tarfile.open(archive) as tar:
+        tar.extractall(root, filter="data")
+    component = root / "kienzlefon-app"
+    load_producer(producer_repo, root)
     from kienzlefon.crypto import TelepraxisEncryptor
     from kienzlefon.delivery import Delivery
-    from kienzlefon.spool import WorkingCall
-    assert __version__ == "2.6.0"
 
     remote, inbox, pull, commands = (root / name for name in ("source", "inbox", "pull", "bin"))
     for directory in (remote, inbox, pull, commands):
@@ -104,21 +126,7 @@ fi
         assert not list(remote.rglob(".ack.*"))
 
     def case(identifier, attach=True, emitter=producer, truncated_wav=False):
-        call = WorkingCall(root / "spool" / identifier, timezone)
-        call.audio_directory.mkdir(parents=True)
-        payload = json.loads((ROOT / "docs/vorgang-v1/beispiele/mehrere-anliegen.json").read_text())["payload"]
-        meta = payload["_kienzlefon"]
-        meta["vorgang_id"] = identifier
-        wav = call.path / meta["audio"][0]["datei"]
-        with wave.open(str(wav), "wb") as writer:
-            writer.setparams((1, 2, 16000, 0, "NONE", ""))
-            writer.writeframes(b"\x00\x01" * 160)
-        if truncated_wav:
-            wav.write_bytes(wav.read_bytes()[:-2])
-        expected = wav.read_bytes()
-        call.save(payload)
-        emitter.publish(call, payload, attach=attach)
-        return call, wav, expected
+        return publish_case(root, timezone, identifier, emitter, attach=attach, truncated_wav=truncated_wav)
 
     def receipt(file, status):
         identifier = file.name.split(".")[0]

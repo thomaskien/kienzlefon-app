@@ -241,8 +241,8 @@ sudo bash kienzlefon-app-update-v1.0.sh --source-dir "$PWD" --check
 sudo bash kienzlefon-app-update-v1.0.sh --source-dir "$PWD"
 ```
 
-Unveröffentlichte Änderungen sind nur im lokalen Quellmodus verfügbar. Ohne
-`--source-dir` lädt der Updater einen zusammenhängenden Stand aus GitHub.
+Im entpackten App-Paket verwendet der Updater dessen mitgelieferte Dateien automatisch.
+Mit `--ref` lässt sich ein veröffentlichter Stand aus GitHub wählen.
 Details zu Diensten, Sicherungen und Grenzen stehen in
 [App aktualisieren](docs/APP-UPDATE.md).
 
@@ -277,7 +277,7 @@ Value: der Wert aus $IONOS_PSK (nachdem du CHANGE_ME... ersetzt hast)
 Das System besteht aus zwei Seiten:
 
 ### 1. Quellserver
-Auf dem Quellserver bekommt jeder Abrufkanal einen eigenen SSH-Benutzer und eine eigene Empfangsdatei nach dem Schema `telepraxis-receive-<ssh-benutzer>.php`.
+Auf dem Quellserver bekommt jeder Abrufkanal einen eigenen SSH-Benutzer. Für Kienzlefon mit Verschlüsseler genügt der reine SSH-Kanal. Wer im Modulmenü zusätzlich Formularempfang auswählt, erhält eine eigene Empfangsdatei nach dem Schema `telepraxis-receive-<ssh-benutzer>.php`.
 Diese Datei nimmt JSON per HTTP-POST entgegen.
 Die Daten werden **nicht im Klartext gespeichert**, sondern direkt in PHP mit einem fest eingebetteten **Public Key** verschlüsselt und als Datei im kanalbezogenen Inbox-Verzeichnis abgelegt.
 
@@ -291,8 +291,8 @@ Beispiel:
 - OTP/State: `/srv/telepraxis/state/CHANNEL/otp.sqlite`
 
 ### 2. Zielsystem
-Das Zielsystem besitzt den zugehörigen **Private Key**.  
-Ein Shell-Script holt die verschlüsselten Dateien regelmäßig per **SCP/SSH** vom Server, entschlüsselt sie lokal und legt daraus wieder normale JSON-Dateien ab.
+Bei lokaler Direktablage schreibt Kienzlefon JSON und WAV direkt in die App-Inbox. Bei der Installation mit Abholer besitzt das Zielsystem den zugehörigen **Private Key**.
+Das Fetch-Skript holt die verschlüsselten Dateien regelmäßig per **SCP/SSH** vom Server, entschlüsselt sie lokal und legt daraus wieder normale JSON-Dateien ab.
 
 Beispiel:
 - geholt von: `<ssh-benutzer>@#servername#:/srv/telepraxis/<ssh-benutzer>/inbox/`
@@ -381,7 +381,7 @@ Die Aufrufe für Schlüsselvorbereitung vor dem Fon-Setup, Zielinstallation, Que
 Die interaktiven Einzelaufrufe sind weiterhin verfügbar.
 
 <pre>
-# Quellserver-Webbasis:
+# Quellserver-Webbasis bei Formularempfang:
 chmod +x quellserver-vorbereiten-nginx-v1.2.sh
 ./quellserver-vorbereiten-nginx-v1.2.sh
 
