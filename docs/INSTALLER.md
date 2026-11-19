@@ -60,7 +60,11 @@ Der Dialog erwartet in dieser Reihenfolge den **SSH-Benutzernamen auf dem Quells
 sudo bash "$PAKET/zielserver-vorbereiten-v1.8.sh" --source-dir "$PAKET" --user "$ZIELBENUTZER"
 ```
 
-Der Dialog fragt nach Quellhost, SSH-Benutzer des Quellkanals, Port und den zwei Adminpasswörtern. Er verwendet die in Schritt 1 vorbereiteten Schlüssel und installiert App, SMS-Bibliotheken, Telefonie-PHP, JavaScript, Schema und das kanalspezifische Fetch-Skript. Der Fetch-Dienst läuft als Zielbenutzer und verwendet SSH mit Hostschlüsselprüfung. Der geprüfte Hostschlüssel des Quellservers muss diesem Benutzer bekannt sein.
+Der Dialog fragt nach Quellhost, SSH-Benutzer des Quellkanals, Port und den zwei Adminpasswörtern. Er verwendet die in Schritt 1 vorbereiteten Schlüssel und installiert App, SMS-Bibliotheken, Telefonie-PHP, JavaScript, Schema, das kanalspezifische Fetch-Skript und daneben `telepraxis-audio-delivery.py`. Der Fetch-Dienst läuft als Zielbenutzer und verwendet SSH mit Hostschlüsselprüfung. Der geprüfte Hostschlüssel des Quellservers muss diesem Benutzer bekannt sein.
+
+Für den Audio-Abholer installiert das Zielsetup unter Debian/Ubuntu auch `python3-cryptography`, `jq`, `openssl` und `openssh-client`. Auf anderen Systemen müssen diese Programme vor dem Start bereitstehen. Der Quellkanal braucht `sha256sum` sowie Schreibzugriff auf `.kienzlefon-ack/` unter seiner Liefer-Inbox. Die Kienzlefon-Quittungsverarbeitung benötigt dort Lese- und Löschrechte.
+
+Der Nachweis je Vorgangs-ID liegt unter `<LOCAL_PULL_DIR>/.vorgang-v1/` auf dem Zielsystem. Er gehört dauerhaft zur jeweiligen Inbox und in ihre konsistente Sicherung, auch nach Papierkorb und endgültiger Löschung. Er enthält Quittungsdaten und Versuchszähler. Die App steuert die WAV-Aufbewahrung über `TELEPRAXIS_AUDIO_RETENTION_DAYS`. Der Wert `0` deaktiviert die zeitgesteuerte Löschung. Beim Verschieben in den Papierkorb löscht die App die WAVs weiterhin.
 
 `--source-dir` bindet sämtliche Projektdateien des jeweiligen Setups an das angegebene Verzeichnis. Unvollständige Pakete werden vor der Systemeinrichtung abgelehnt. Die Installation der Betriebssystempakete auf dem Zielhost verwendet weiterhin dessen Paketquellen. Ohne Optionen bieten beide Setup-Skripte den bisherigen interaktiven Einzelaufruf mit Online-Bezug der Projektdateien an.
 
@@ -74,3 +78,5 @@ sudo bash "$PAKET/kienzlefon-app-update-v1.0.sh" --source-dir "$PAKET" --check &
 ```
 
 Der Standard-Webroot ist `/var/www/html`. Einen vorhandenen Worker erkennt der Updater unter `/opt/telepraxis-sms`. Bei abweichenden Pfaden beiden Befehlen dieselben Optionen `--webroot VERZEICHNIS`, `--worker-dir VERZEICHNIS` und gegebenenfalls `--web-service DIENST` und `--worker-service DIENST` mitgeben. Alle sechs Worker-Dateien einschließlich der drei Empfangsmodule gehören zu diesem Update. Der Prüflauf arbeitet ohne Dienständerung. Das Update startet nur zuvor aktive Dienste. [Details zu Erhalt, Sicherung und Rollback](APP-UPDATE.md)
+
+Der Updater erkennt vorhandene Kanal-Abholer unter `/usr/local/bin/telepraxis_fetch_and_decrypt_<kanal>.sh`. Bei abweichendem Installationsverzeichnis beiden Aufrufen `--fetch-dir VERZEICHNIS` mitgeben. Ein Ziel mit reiner Direktablage braucht keinen Abrufkanal.

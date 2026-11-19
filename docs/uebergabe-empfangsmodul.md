@@ -1,20 +1,20 @@
 # Uebergabe Empfangsmodul
 
-Stand: 2026-06-25
+Stand 19.11.2026
 
 ## Ziel
 
 Das System transportiert eingehende JSON-Daten vom Quellsystem zum Zielsystem, ohne dass die Daten auf dem Quellsystem im Klartext liegen.
 
 - Quellsystem: nimmt POST-JSON entgegen, authentifiziert den Request und speichert nur verschluesselte Dateien.
-- Zielsystem: holt `*.enc` per SSH/SCP, entschluesselt lokal, validiert Inhalt und loescht danach lokale und remote verschluesselte Zwischenfiles.
+- Das Zielsystem holt `*.json.enc` und `*.kienzlepaket` per SSH/SCP und entschlüsselt lokal. Kienzlefon bereinigt Paket- und Ersatzlieferungen anhand der Quittung. Für gewöhnliche JSON-only-Lieferungen gilt die bisherige Abrufbereinigung.
 - Mehrbenutzerbetrieb: Jeder Abrufkanal bekommt einen eigenen SSH-Benutzer auf dem Quellsystem und eine eigene Empfangsdatei `telepraxis-receive-<ssh-benutzer>.php`.
 
 ## Schluesselarten
 
 Es gibt zwei getrennte Schluesselarten:
 
-- SSH-Key: nur fuer Abruf und Loeschen per SSH/SCP.
+- Der SSH-Key authentifiziert Abruf, Quittungsablage und die bestehende JSON-only-Bereinigung.
 - RSA-Keypaar fuer Inhaltsverschluesselung: Public Key im PHP-Script auf dem Quellsystem, Private Key nur auf dem Zielsystem.
 
 ## Quellsystem
@@ -52,7 +52,7 @@ Der Klartext ist das bisherige Vorgangsobjekt mit `received_at`, `remote_ip`,
 `user_agent`, `typ` und `payload`. Die Prüfsumme bezieht sich auf die exakten
 Bytes vor der Verschlüsselung, einschließlich vorhandener Leerzeichen und
 Zeilenumbrüche. Der Abholer prüft sie vor dem Veröffentlichen der
-entschlüsselten Datei. Neue Daten wie eine Anliegenliste oder der geplante
+entschlüsselten Datei. Neue Daten wie eine Anliegenliste oder der
 Audio-Fehlerhinweis gehören in `payload`. Sie ändern die Hülle v1 nicht.
 
 Der PHP-POST enthält nur den Nutzinhalt. Der Empfänger baut daraus das
@@ -78,9 +78,10 @@ Polling ist aktuell bewusst simpel mit 5 Sekunden vorgesehen.
 Seit 18.11.2026 gilt der
 [gemeinsame Audiovertrag v1](vorgang-v1/AUDIO.md) für Kienzlefon und App.
 Diese Übergabe ergänzt ihn um den Betriebskontext des Abholers. App 3.7
-verarbeitet lokal abgelegte JSONs und WAV-Beilagen. Der bestehende SSH-Abholer
-verarbeitet `*.json.enc`. Die Erweiterung für Vorgangspakete und Quittungen
-gehört zur separaten Umsetzung des verschlüsselten Audiotransports.
+verarbeitet lokal abgelegte JSONs und WAV-Beilagen. Der SSH-Abholer des
+App-Pakets verarbeitet beide Lieferformate mit einem dauerhaften Importnachweis
+je Kanal. Neue und bestehende Abrufkanäle erhalten den Audio-Helfer über
+Zielsetup und Updater.
 
 ### Ausgabe und Übergabe
 
@@ -241,6 +242,23 @@ abweichende Vorgangs-IDs, doppelte Teilanliegen-IDs und die Bindung der
 Quittung an die verschlüsselte Lieferdatei. Die Laufzeitabnahme nach der
 Implementierung prüft Abrufabbruch, Zielausfall, verlorene Quittungen,
 Wiederanlauf und Spool-Bereinigung über den echten SSH-Abrufkanal.
+
+Am 19.11.2026 wurde der gepackte Abholer mit dem Erzeuger aus Kienzlefon
+2.6.0 (`73651ee`), Wegwerfschlüsseln und simuliertem SSH/SCP offline geprüft.
+Geprüft wurden Paket- und JSON-Ablage, Teilübertragung, beschädigtes Paket,
+Ersatzanforderung nach drei bestätigbaren Fehlversuchen, Hash der Ersatz-JSON,
+verlorene Quittung, Wiederholungen nach Bearbeitung und Papierkorb sowie die
+quittungsgesteuerte Bereinigung des synthetischen Quellspools. Für die
+Wiederholung werden Python 3.12 mit `cryptography`, PHP CLI, OpenSSL,
+OpenSSH-Client, `jq`, `sha256sum` und der lokale Erzeuger-Commit benötigt.
+
+```sh
+python3 tests/offline_audio_package.py --archive dist/kienzlefon-app.tar.gz --producer-repo ../kienzlefon
+```
+
+Am Zielsystem stehen noch SSH-Hostschlüssel und Kanalrechte, Gruppenzugriff
+auf Inbox und Quittungsverzeichnis sowie der Betrieb und Wiederanlauf des
+systemd-Dienstes mit dem tatsächlichen Dateisystem zur Prüfung aus.
 
 ## Zentraler Architekturpunkt
 

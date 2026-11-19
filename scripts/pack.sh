@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v1.0 – lokales Komponentenpaket für den gemeinsamen Installer.
+# v1.1 – lokales Komponentenpaket mit dem Audio-Helfer für den SSH-Abholer.
 set -euo pipefail
 
 if [[ $# != 2 || $1 != --output || $2 != /* ]]; then
@@ -26,6 +26,7 @@ quellserver-vorbereiten-nginx-v1.2.sh
 quellserver-benutzer-erzeugen-v1.8.sh
 kienzlefon-app-update-v1.0.sh
 telepraxis_fetch_and_decrypt.sh
+telepraxis-audio-delivery.py
 telepraxis-receive.php
 kontakt.php
 telepraxis-app.php

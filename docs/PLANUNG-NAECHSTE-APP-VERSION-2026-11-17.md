@@ -93,5 +93,6 @@ den Vorgang mit drei Teilanliegen, die Wiedergabe-URL für lokale WAVs, den
 separaten Papierkorb, die unabhängigen T2med- und Telefonie-Schalter sowie die
 Zähler bei schmalen Fenstern. Der lokale Middleware-Stand verarbeitet über
 den App-Proxy eine Übersicht und einen bestätigten Normal-Schaltauftrag an
-der simulierten Anlage. Die Abnahme an einer realen Anlage und der
-verschlüsselte SSH-Transport von WAV-Paketen bleiben eigene Schritte.
+der simulierten Anlage. Der verschlüsselte Audio-Abholer wurde am 19.11.2026
+aus dem App-Paket mit Kienzlefon 2.6.0 offline geprüft. Ausstehend sind die
+Abnahme an einer realen Telefonanlage und der Test am tatsächlichen SSH-Kanal.

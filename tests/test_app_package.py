@@ -19,7 +19,7 @@ WEB = {
 }
 PAYLOAD = WEB | {
     TARGET, CHANNEL, UPDATER, "quellserver-vorbereiten-nginx-v1.2.sh", "telepraxis_fetch_and_decrypt.sh",
-    "telepraxis-receive.php", "kontakt.php", "telepraxis-sms-worker.php", "telepraxis-sms-inspect.php",
+    "telepraxis-audio-delivery.py", "telepraxis-receive.php", "kontakt.php", "telepraxis-sms-worker.php", "telepraxis-sms-inspect.php",
     "telepraxis-sms-journal.php", "telepraxis-sms-receive.php", "telepraxis-sms-receive-store.php",
     "config/sms-queue-web.example.json", "config/sms-queue-worker.example.json",
     "config/telephony-config.example.php", "config/telepraxis-sms-worker.service",
@@ -166,6 +166,8 @@ class AppPackageTests(unittest.TestCase):
         for name in ("telepraxis-telephony.js", "telepraxis-telephony.php", "telepraxis-telephony-schema.json"):
             self.assertEqual((web / name).read_bytes(), (self.source / name).read_bytes())
         fetch = (self.host / "bin/telepraxis_fetch_and_decrypt_kanal1.sh").read_text()
+        helper = self.host / "bin/telepraxis-audio-delivery.py"
+        self.assertEqual(helper.read_bytes(), (self.source / helper.name).read_bytes())
         for setting in ('REMOTE_HOST="source.example"', 'REMOTE_USER="abruf1"', 'SSH_PORT="2222"',
                         f'PRIVATE_KEY_FILE="{rsa}"', f'SSH_IDENTITY_FILE="{ssh}"'):
             self.assertIn(setting, fetch)
@@ -180,6 +182,37 @@ class AppPackageTests(unittest.TestCase):
         self.assertEqual(checked.returncode, 0, checked.stderr)
         self.assertEqual({p: p.read_bytes() for p in web.iterdir()}, before)
         self.assertFalse(backup.exists())
+
+        # Upgrade two old channel scripts in place. No service or system paths are used here.
+        bin_dir = helper.parent
+        helper.unlink()
+        old_fetch = fetch.split("list_remote_files()")[0] + "\n# previous fetcher\n"
+        old_fetch = "\n".join(line for line in old_fetch.splitlines() if not line.startswith("AUDIO_")) + "\n"
+        first = bin_dir / "telepraxis_fetch_and_decrypt_kanal1.sh"
+        second = bin_dir / "telepraxis_fetch_and_decrypt_kanal2.sh"
+        first.write_text(old_fetch)
+        second.write_text(old_fetch.replace("abruf1", "anderer-kanal").replace('SSH_PORT="2222"', 'SSH_PORT="2200"'))
+        previous_second = second.read_bytes()
+        app = web / "telepraxis-app.php"
+        app.write_text(app.read_text().replace("TELEPRAXIS_AUDIO_RETENTION_DAYS = 0", "TELEPRAXIS_AUDIO_RETENTION_DAYS = 21"))
+        update = ["bash", str(self.source / UPDATER), "--webroot", str(web), "--source-dir", str(self.source),
+                  "--backup-dir", str(backup), "--fetch-dir", str(bin_dir), "--no-service"]
+        for mode in ("--check", "--yes"):
+            result = subprocess.run(update + [mode], text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            if mode == "--check":
+                self.assertEqual(second.read_bytes(), previous_second)
+                self.assertFalse(helper.exists())
+        self.assertEqual(helper.read_bytes(), (self.source / helper.name).read_bytes())
+        for script in (first, second):
+            self.assertIn("process_one_remote_file()", script.read_text())
+            self.assertIn(f'PRIVATE_KEY_FILE="{rsa}"', script.read_text())
+            self.assertIn(f'LOCAL_OUT_DIR="{base / "inbox"}"', script.read_text())
+        self.assertIn('REMOTE_USER="anderer-kanal"', second.read_text())
+        self.assertIn('SSH_PORT="2200"', second.read_text())
+        self.assertEqual(next(backup.glob("*/fetch/" + second.name)).read_bytes(), previous_second)
+        self.assertIn("TELEPRAXIS_AUDIO_RETENTION_DAYS = 21", app.read_text())
+        self.assertEqual({p: p.read_bytes() for p in saved}, saved)
 
         self.setup_host(CHANNEL, "--source-dir", self.source,
                         stdin="abruf1\n" + ssh_pub.read_text() + rsa_pub.read_text() + "M\nTestPSK\n")
@@ -205,7 +238,7 @@ class AppPackageTests(unittest.TestCase):
         public_input = ((base / ".ssh/telepraxis_fetch_key.pub").read_text()
                         + (base / "telepraxis_decrypt_public.pem").read_text())
         self.setup_host(CHANNEL, upstream=self.source, stdin="abruf1\n" + public_input + "A\n")
-        self.assertEqual((self.host / "events").read_text().splitlines().count("curl"), len(WEB) + 3)
+        self.assertEqual((self.host / "events").read_text().splitlines().count("curl"), len(WEB) + 4)
         self.assertTrue((self.host / "web/telepraxis-app.php").is_file())
         self.assertTrue((self.host / "web/telepraxis-receive-abruf1.php").is_file())
         self.assertTrue((self.host / "web/kontakt-abruf1.php").is_file())

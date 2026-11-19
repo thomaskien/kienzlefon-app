@@ -3,6 +3,7 @@
 #
 # Version 1.0 (2026-09-29)
 # Changelog:
+# - 19.11.2026: Vorhandene Abrufkanäle mit Audio-Helfer, Konfigurationserhalt und Rollback aktualisieren.
 # - SMS-Empfangsmodule im selben Update wie Worker und Webapp pruefen und installieren.
 # - App 3.7: Telefoniedateien ausliefern und bestehende App-Optionen erhalten.
 # - Initialer, eigenstaendiger Updater mit lokaler/Online-Quelle, sicherer
@@ -50,6 +51,12 @@ WEB_FILES = (
     "telepraxis-telephony.js",
     "telepraxis-telephony-schema.json",
 )
+FETCH_TEMPLATE = "telepraxis_fetch_and_decrypt.sh"
+FETCH_HELPER = "telepraxis-audio-delivery.py"
+FETCH_SETTINGS = ("REMOTE_HOST", "REMOTE_USER", "REMOTE_DIR", "LOCAL_PULL_DIR", "LOCAL_OUT_DIR",
+                  "PRIVATE_KEY_FILE", "SSH_IDENTITY_FILE", "SSH_PORT", "SSH_EXTRA_OPTS",
+                  "REMOTE_FILE_PATTERN", "RUN_FOREVER", "SLEEP_SECONDS",
+                  "DELETE_REMOTE_ON_SUCCESS", "DELETE_LOCAL_ENC_ON_SUCCESS")
 WORKER_CORE_FILES = (
     "telepraxis-sms-worker.php",
     "telepraxis-sms.php",
@@ -100,6 +107,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--check", action="store_true", help="Nur vorbereiten und pruefen, nichts installieren")
     result.add_argument("--yes", action="store_true", help="Rueckfrage ueberspringen")
     result.add_argument("--web-service", help="Expliziter php-fpm- oder Apache-systemd-Dienst")
+    result.add_argument("--fetch-dir", help="Verzeichnis der installierten kanalbezogenen Abrufskripte (Standard /usr/local/bin)")
     result.add_argument("--worker-dir", help="Verzeichnis einer vorhandenen SMS-Worker-Installation")
     result.add_argument("--worker-service", default="telepraxis-sms-worker.service", help="systemd-Dienst des SMS-Workers")
     result.add_argument("--no-service", action="store_true", help="Wartungsmodus wird extern sichergestellt")
@@ -613,6 +621,25 @@ def print_plan(webroot: Path, worker_dir: Path | None, source_label: str, check_
     print("  Modus: nur Pruefung" if check_only else "  Modus: Installation mit privater Sicherung")
 
 
+def prepare_fetch(template: Path, installed: Path, candidate: Path) -> None:
+    # Copy administrator settings as shell source; never evaluate the channel script as root.
+    source = template.read_text()
+    previous = installed.read_text()
+    for setting in FETCH_SETTINGS + ("AUDIO_STATE",):
+        pattern = rf"^{setting}=.+$"
+        values = re.findall(pattern, previous, re.MULTILINE)
+        if not values and setting == "AUDIO_STATE":
+            continue
+        if len(values) != 1:
+            raise UpdateError(f"{installed.name}: Einstellung {setting} fehlt oder ist mehrdeutig.")
+        source, count = re.subn(pattern, lambda _: values[0], source, flags=re.MULTILINE)
+        if count != 1:
+            raise UpdateError(f"Unvollständige Abholervorlage: {setting}")
+    candidate.write_text(source)
+    if subprocess.run(["bash", "-n", str(candidate)], capture_output=True).returncode:
+        raise UpdateError(f"Shell-Prüfung fehlgeschlagen: {installed.name}")
+
+
 def main() -> int:
     args = parser().parse_args()
     signal.signal(signal.SIGTERM, interrupt_update)
@@ -660,16 +687,39 @@ def main() -> int:
             if name in WORKER_CORE_FILES or path.exists() or path.is_symlink():
                 require_regular_file(path, "Bestehende SMS-Worker-Datei")
 
+    fetch_dir = Path(args.fetch_dir or "/usr/local/bin")
+    if args.fetch_dir or fetch_dir.exists():
+        fetch_dir = require_real_directory(fetch_dir, "Fetch-Verzeichnis")
+    fetch_scripts = sorted(fetch_dir.glob("telepraxis_fetch_and_decrypt_*.sh"))
+    if args.fetch_dir and not fetch_scripts:
+        raise UpdateError("Keine kanalbezogenen Abrufskripte im angegebenen Fetch-Verzeichnis.")
+    fetch_targets = []
+    fetch_services = []
+    if fetch_scripts:
+        if any(overlaps(fetch_dir, path) for path in (webroot, backup_base, source_dir, worker_dir) if path):
+            raise UpdateError("Fetch-Verzeichnis und andere Updatepfade müssen getrennt sein.")
+        for path in fetch_scripts:
+            match = re.fullmatch(r"telepraxis_fetch_and_decrypt_([a-z_][a-z0-9_-]*)\.sh", path.name)
+            if not match:
+                raise UpdateError(f"Unbekannter Kanalname: {path.name}")
+            require_regular_file(path, "Kanal-Abholer")
+            fetch_services.append("telepraxis-fetch-and-decrypt-" + match[1] + ".service")
+        fetch_targets = [fetch_dir / FETCH_HELPER, *fetch_scripts]
+        for command in ("bash", "jq", "ssh", "scp", "openssl", "od"):
+            if not shutil.which(command):
+                raise UpdateError(f"Laufzeitabhängigkeit des Abholers fehlt: {command}")
     php = check_runtime()
     needed = set(WEB_FILES)
+    if fetch_scripts:
+        needed.update((FETCH_TEMPLATE, FETCH_HELPER))
     if worker_dir is not None:
         needed.update(WORKER_FILES)
     source_label = str(source_dir) if source_dir is not None else f"GitHub {REPOSITORY}@{args.ref}"
 
     with ExitStack() as stack:
-        for directory in sorted({webroot} | ({worker_dir} if worker_dir else set())):
+        for directory in sorted({webroot} | ({worker_dir} if worker_dir else set()) | ({fetch_dir} if fetch_scripts else set())):
             stack.enter_context(acquire_lock(directory))
-        target_paths = list(installed_web.values()) + list(installed_worker.values())
+        target_paths = list(installed_web.values()) + list(installed_worker.values()) + fetch_targets
         initial_fingerprints = target_fingerprints(target_paths)
         temporary_text = stack.enter_context(tempfile.TemporaryDirectory(prefix="kienzlefon-app-update-"))
         temporary = Path(temporary_text)
@@ -718,6 +768,17 @@ def main() -> int:
             for name in WORKER_FILES:
                 lint_php(php, prepared_worker / name)
 
+        prepared_fetch = temporary / "fetch"
+        if fetch_scripts:
+            prepared_fetch.mkdir(mode=0o700)
+            helper = prepared_fetch / FETCH_HELPER
+            shutil.copyfile(source_files / FETCH_HELPER, helper)
+            helper.chmod(0o644)
+            if subprocess.run([sys.executable, str(helper), "--help"], capture_output=True).returncode:
+                raise UpdateError("Audio-Helfer benötigt Python 3 mit cryptography (Debian/Ubuntu: python3-cryptography).")
+            for path in fetch_scripts:
+                prepare_fetch(source_files / FETCH_TEMPLATE, path, prepared_fetch / path.name)
+                print(f"  Abrufkanal: {path.name}")
         print_plan(webroot, worker_dir, source_label, args.check)
         if args.check:
             print("Pruefung erfolgreich; es wurden keine Zieldateien, Dienste oder Sicherungen veraendert.")
@@ -725,7 +786,11 @@ def main() -> int:
 
         web_service: tuple[str, bool] | None = None
         worker_service: tuple[str, bool] | None = None
+        fetch_service_states = []
         if not args.no_service:
+            for service in fetch_services:
+                require_loaded_service(service)
+                fetch_service_states.append((service, is_service_active(service)))
             web_service = detect_web_service(args.web_service)
             if worker_dir is not None:
                 if shutil.which("systemctl") is None:
@@ -738,9 +803,9 @@ def main() -> int:
                 worker_service = (worker_name, worker_active)
 
         if args.no_service:
-            print("  Dienste: externe Wartung (--no-service); PHP und SMS-Worker muessen gestoppt sein.")
+            print("  Dienste: externe Wartung (--no-service); PHP, SMS-Worker und vorhandene Abholer muessen gestoppt sein.")
         else:
-            for service in (web_service, worker_service):
+            for service in (web_service, worker_service, *fetch_service_states):
                 if service is not None:
                     name, active = service
                     print(f"  Dienst: {name} ({'aktiv, wird neu gestartet' if active else 'gestoppt, bleibt gestoppt'})")
@@ -760,6 +825,7 @@ def main() -> int:
             targets.extend((f"worker/{name}", installed_worker[name]) for name in WORKER_FILES)
         if target_fingerprints(target_paths) != initial_fingerprints:
             raise UpdateError("Installierte Dateien wurden seit der Vorbereitung geaendert; bitte erneut pruefen.")
+        targets.extend((f"fetch/{path.name}", path) for path in fetch_targets)
         backup, manifest = create_backup(backup_base, targets)
         print(f"Sicherung: {backup}")
 
@@ -768,6 +834,7 @@ def main() -> int:
             original_services.append(web_service[0])
         if worker_service is not None and worker_service[1]:
             original_services.insert(0, worker_service[0])
+        original_services[:0] = [service for service, active in fetch_service_states if active]
         files_started = False
 
         try:
@@ -786,11 +853,16 @@ def main() -> int:
                     target = installed_worker[name]
                     atomic_copy(prepared_worker / name, target, install_metadata(target, installed_worker["telepraxis-sms.php"]))
 
+            for target in fetch_targets:
+                candidate = prepared_fetch / target.name
+                atomic_copy(candidate, target, install_metadata(target, candidate))
+
             start_order = []
             if web_service is not None and web_service[1]:
                 start_order.append(web_service[0])
             if worker_service is not None and worker_service[1]:
                 start_order.append(worker_service[0])
+            start_order.extend(service for service, active in fetch_service_states if active)
             for service in start_order:
                 start_service(service)
         except BaseException as exc:

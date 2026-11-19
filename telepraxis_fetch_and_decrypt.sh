@@ -1,28 +1,7 @@
 #!/usr/bin/env bash
-# telepraxis_fetch_and_decrypt.sh
-#
-# Holt verschlsselte Telepraxis-Dateien per SCP, entschlsselt sie lokal
-# und lscht nach erfolgreicher Verarbeitung die .enc-Datei lokal und remote.
-#
-# Getestete Zielidee:
-# - Remote-Dateien:   /srv/telepraxis/inbox/*.enc
-# - Lokale Ausgabe:   z.B. /Volumes/webroot/inbox/*.json
-#
-# Voraussetzungen lokal:
-#   - bash
-#   - ssh
-#   - scp
-#   - openssl
-#   - jq
-#   - mktemp
-#   - od
-#
-# macOS:
-#   brew install jq
-#
-# Linux:
-#   sudo apt install jq openssl
-
+# v1.1 – SSH-Abruf für verschlüsselte JSON und Kienzlefon-Audiopakete.
+# Pakete und Ersatzlieferungen bleiben bis zur Quittungsverarbeitung beim Erzeuger.
+# Lokal: Bash, OpenSSH, OpenSSL, jq und Python 3 mit cryptography.
 set -u
 set -o pipefail
 
@@ -56,6 +35,9 @@ SSH_EXTRA_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes"
 
 # Dateimuster auf dem Server
 REMOTE_FILE_PATTERN="*.enc"
+
+AUDIO_HELPER="${TELEPRAXIS_AUDIO_HELPER:-$(dirname "$0")/telepraxis-audio-delivery.py}"
+AUDIO_STATE="${TELEPRAXIS_AUDIO_STATE:-${LOCAL_PULL_DIR%/}/.vorgang-v1}"
 
 # 1 = alle 5 Sekunden pollen
 # 0 = genau einmal laufen und beenden
@@ -119,10 +101,14 @@ decrypt_one_file() {
     final_out="${out_dir%/}/${out_name}"
     tmp_out="${out_dir%/}/.${out_name}.tmp"
 
-    tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t telepraxis)"
+    tmpdir="$(mktemp -d "$out_dir/.decrypt.XXXXXX")" || return 1
     [ -d "$tmpdir" ] || return 1
 
     # Wrapper-Felder extrahieren und base64-dekodieren
+    if ! jq -e '.v == 1 and .cipher == "AES-256-CBC" and (.sha256 | test("^[0-9a-f]{64}$"))' "$enc_file" >/dev/null; then
+        rm -rf -- "$tmpdir"
+        return 1
+    fi
     if ! jq -e -r '.ek' "$enc_file" | openssl base64 -d -A -out "$tmpdir/ek.bin" >/dev/null 2>&1; then
         log "Entschlsselung fehlgeschlagen: ek konnte nicht gelesen werden: $enc_file"
         rm -rf "$tmpdir"
@@ -171,7 +157,7 @@ decrypt_one_file() {
     key_hex="$(hex_of_file "$tmpdir/key.bin")"
     iv_hex="$(hex_of_file "$tmpdir/iv.bin")"
 
-    if [ -z "$key_hex" ] || [ -z "$iv_hex" ]; then
+    if [ "${#key_hex}" != 64 ] || [ "${#iv_hex}" != 32 ]; then
         log "Leerer Schlssel oder IV nach Entschlsselung: $enc_file"
         rm -rf "$tmpdir"
         return 1
@@ -229,16 +215,42 @@ list_remote_files() {
     local remote_dir_q
     remote_dir_q="$(shell_quote "$REMOTE_DIR")"
 
-    ssh_base_cmd "cd ${remote_dir_q} && find . -maxdepth 1 -type f -name '${REMOTE_FILE_PATTERN}' | sed 's#^\./##' | sort" 2>/dev/null
+    ssh_base_cmd "cd ${remote_dir_q} && find . -maxdepth 1 -type f \( -name $(shell_quote "$REMOTE_FILE_PATTERN") -o -name '*.kienzlepaket' \) -print"
 }
 
-delete_remote_file() {
-    # $1 = Dateiname relativ zu REMOTE_DIR
-    local remote_name="$1"
-    local remote_full_q
+send_receipts() {
+    local ack name remote_dir remote_target lines digest
+    lines="$(jq -ce '.[]' <<<"$1")" || return 1
+    while IFS= read -r ack; do
+        name="$(jq -er '[.vorgang_id, .sha256, .status] | join(".") + ".ack.json"' <<<"$ack")" || return 1
+        [[ "$name" =~ ^[A-Za-z0-9_-]{1,64}\.[a-f0-9]{64}\.(abgelegt|ueberholt|ersatz_json_noetig)\.ack\.json$ ]] || return 1
+        remote_dir="$(shell_quote "${REMOTE_DIR%/}/.kienzlefon-ack")"
+        remote_target="$(shell_quote "${REMOTE_DIR%/}/.kienzlefon-ack/$name")"
+        digest="$(printf '%s\n' "$ack" | openssl dgst -sha256 | sed 's/^.*= //')" || return 1
+        [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || return 1
+        ssh_base_cmd "umask 007; mkdir -p -- $remote_dir &&
+            tmp=\$(mktemp $remote_dir/.ack.XXXXXX) &&
+            trap 'rm -f -- \"\$tmp\"' 0 &&
+            cat >\"\$tmp\" && actual=\$(sha256sum -- \"\$tmp\") &&
+            [ \"\${actual%% *}\" = '$digest' ] && chmod 660 \"\$tmp\" &&
+            mv -f -- \"\$tmp\" $remote_target" <<<"$ack" || return 1
+    done <<< "$lines"
+}
 
-    remote_full_q="$(shell_quote "${REMOTE_DIR%/}/${remote_name}")"
-    ssh_base_cmd "rm -f -- ${remote_full_q}" >/dev/null 2>&1
+remote_sha256() {
+    ssh_base_cmd "sha256sum -- $(shell_quote "${REMOTE_DIR%/}/$1")" </dev/null | cut -d ' ' -f 1
+}
+
+delivery_helper() {
+    python3 "$AUDIO_HELPER" --inbox "$LOCAL_OUT_DIR" --state "$AUDIO_STATE" "$@"
+}
+
+record_audio_failure() {
+    local name="$1" digest receipts
+    digest="$(remote_sha256 "$name")" || return 1
+    [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || return 1
+    receipts="$(delivery_helper --failure-hash "$digest" "$name")" || return 1
+    send_receipts "$receipts"
 }
 
 fetch_remote_file() {
@@ -249,68 +261,69 @@ fetch_remote_file() {
     local remote_spec
 
     remote_spec="${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR%/}/${remote_name}"
-    scp_get_cmd "$remote_spec" "$local_path"
+    scp_get_cmd "$remote_spec" "$local_path" </dev/null
 }
 
-process_one_remote_file() {
-    # $1 = Dateiname relativ zu REMOTE_DIR
-    local remote_name="$1"
-    local local_enc
-
-    local_enc="${LOCAL_PULL_DIR%/}/${remote_name}"
-
-    mkdir -p "$LOCAL_PULL_DIR" "$LOCAL_OUT_DIR" || {
-        log "Konnte lokale Verzeichnisse nicht anlegen"
-        return 1
-    }
-
-    if ! fetch_remote_file "$remote_name" "$local_enc"; then
-        log "Konnte Datei nicht holen: $remote_name"
-        return 1
+process_one_remote_file() (
+    umask 007
+    local name="$1" scratch enc plain receipts remote_path digest code=0
+    local package=0
+    if [[ "$name" =~ ^[A-Za-z0-9_-]{1,64}\.kienzlepaket$ ]]; then
+        package=1
+    elif ! [[ "$name" =~ ^[A-Za-z0-9_-][A-Za-z0-9._-]*\.json\.enc$ ]]; then
+        return 0
     fi
-
-    log "Geholt: $remote_name"
-
-    if ! decrypt_one_file "$local_enc" "$LOCAL_OUT_DIR"; then
-        log "Entschlsselung fehlgeschlagen, Datei bleibt erhalten: $local_enc"
-        return 1
+    scratch="$(mktemp -d "$download_root/.vorgang.XXXXXX")" || return 1
+    trap 'rm -rf -- "$scratch"' EXIT
+    enc="$scratch/$name"
+    if ! fetch_remote_file "$name" "$enc"; then
+        (( package )) && record_audio_failure "$name"
+        return
     fi
-
-    if [ "$DELETE_REMOTE_ON_SUCCESS" = "1" ]; then
-        if ! delete_remote_file "$remote_name"; then
-            log "Remote-Lschen fehlgeschlagen, lokale .enc bleibt erhalten: $remote_name"
-            return 1
+    if (( package )); then
+        receipts="$(delivery_helper --key "$PRIVATE_KEY_FILE" "$enc")" || code=$?
+        if (( code == 2 )); then
+            record_audio_failure "$name"
+            return
         fi
-        log "Remote gelscht: $remote_name"
+        (( code == 0 )) || return 1
+    else
+        plain="$scratch/${name%.enc}"
+        decrypt_one_file "$enc" "$scratch" || return 1
+        receipts="$(delivery_helper --plain-json "$plain" "$enc")" || return 1
     fi
-
-    if [ "$DELETE_LOCAL_ENC_ON_SUCCESS" = "1" ]; then
-        rm -f -- "$local_enc" || {
-            log "Warnung: lokale .enc konnte nicht gelscht werden: $local_enc"
-            return 1
-        }
-        log "Lokal gelscht: $local_enc"
+    if [[ "$receipts" != '[]' ]]; then
+        send_receipts "$receipts" || return 1
+    elif [[ "$DELETE_REMOTE_ON_SUCCESS" == 1 ]]; then
+        # Nur herkömmliche JSON-only-Lieferungen verwenden die bisherige Abrufbereinigung.
+        digest="$(sha256_of_file "$enc")" || return 1
+        remote_path="$(shell_quote "${REMOTE_DIR%/}/$name")"
+        ssh_base_cmd "actual=\$(sha256sum -- $remote_path) && [ \"\${actual%% *}\" = '$digest' ] && rm -f -- $remote_path" </dev/null || return 1
     fi
-
+    if [[ "$DELETE_LOCAL_ENC_ON_SUCCESS" == 0 && "$receipts" == '[]' ]]; then
+        mv -f -- "$enc" "$LOCAL_PULL_DIR/$name" || return 1
+    fi
     return 0
-}
+)
 
-run_once() {
-    local found_any=0
-    local remote_name
-
-    while IFS= read -r remote_name; do
-        [ -n "$remote_name" ] || continue
-        found_any=1
-        process_one_remote_file "$remote_name"
-    done <<EOF
-$(list_remote_files)
-EOF
-
-    if [ "$found_any" -eq 0 ]; then
-        log "Keine Dateien gefunden."
+run_once() (
+    local listing name result=0
+    local download_root="$AUDIO_STATE/.fetch-work"
+    # An inherited descriptor keeps flock held until this polling round exits.
+    exec 9>>"$AUDIO_STATE/.fetch.lock" || return 1
+    python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX)' || return 1
+    if [[ -e "$download_root" || -L "$download_root" ]]; then
+        rm -rf -- "$download_root" || return 1
     fi
-}
+    mkdir -m 0700 -- "$download_root" || return 1
+    trap 'rm -rf -- "$download_root"' EXIT
+    listing="$(list_remote_files)" || { log "SSH-Abruf nicht erreichbar. Lieferung bleibt offen."; return 1; }
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        process_one_remote_file "${name#./}" || { log "Lieferung noch offen: ${name#./}"; result=1; }
+    done <<< "$listing"
+    return "$result"
+)
 
 main() {
     require_cmd bash
@@ -324,7 +337,12 @@ main() {
     [ -f "$PRIVATE_KEY_FILE" ] || fail "Private Key nicht gefunden: $PRIVATE_KEY_FILE"
     [ -f "$SSH_IDENTITY_FILE" ] || fail "SSH-Key nicht gefunden: $SSH_IDENTITY_FILE"
 
-    mkdir -p "$LOCAL_PULL_DIR" "$LOCAL_OUT_DIR" || fail "Konnte lokale Verzeichnisse nicht anlegen"
+    [ -d "$LOCAL_OUT_DIR" ] || fail "Konfigurierte Inbox ist nicht verfügbar. Lieferung bleibt offen."
+    mkdir -p "$LOCAL_PULL_DIR" || fail "Lokales Abrufverzeichnis ist nicht verfügbar."
+    require_cmd python3
+    [ -r "$AUDIO_HELPER" ] || fail "Audio-Helfer fehlt."
+    python3 "$AUDIO_HELPER" --help >/dev/null || fail "Python mit cryptography wird benötigt."
+    (umask 077; mkdir -p -- "$AUDIO_STATE") || fail "Importnachweis konnte nicht eingerichtet werden."
 
     if [ "$RUN_FOREVER" = "1" ]; then
         log "Starte Polling-Schleife alle ${SLEEP_SECONDS}s"

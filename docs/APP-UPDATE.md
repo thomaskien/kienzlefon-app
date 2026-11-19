@@ -15,6 +15,19 @@ Der ausfuehrende Benutzer muss die Programmdateien ersetzen und die betreffenden
 Dienste stoppen/starten duerfen; auf dem Zielsystem normalerweise `sudo` nutzen.
 PHP CLI und Web-PHP muessen kompatibel konfiguriert sein.
 
+Für erkannte Abrufkanäle prüft der Updater vor dem Austausch Bash, OpenSSH-Client,
+OpenSSL, `jq`, `od` und den Audio-Helfer mit dem lokalen Python 3 und
+`cryptography`. Unter Debian/Ubuntu liefern `python3-cryptography`, `jq`,
+`openssh-client`, `openssl` und `coreutils` die Laufzeit. Fehlende Pakete vor dem
+Update bereitstellen. Als Abholer gelten die vom Zielsetup installierten
+`telepraxis_fetch_and_decrypt_<kanal>.sh` unter `/usr/local/bin` oder `--fetch-dir`.
+Ihre SSH-Ziele, Ports, Schlüsselpfade, Inboxen, Abrufintervalle, Einstellungen
+für die bisherige JSON-Bereinigung und konfigurierten Nachweisverzeichnisse
+werden übernommen. Abholskripte und der gemeinsame Audio-Helfer werden unter
+`fetch/` im Update-Manifest geführt. Jeder zuvor aktive Fetch-Dienst wird für
+den Austausch angehalten und danach wieder gestartet. Bei `--no-service`
+übernimmt der Betreiber die Wartung auch für diese Dienste.
+
 Im Webroot muessen `telepraxis-app.php`, `telepraxis-sms.php` und `sms-config.php`
 bereits vorhanden sein. Der Updater installiert auch `telepraxis-sms-queue.php`,
 `telepraxis-telephony.php`, `telepraxis-telephony.js` und

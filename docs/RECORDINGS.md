@@ -15,7 +15,7 @@ bis zum Verschieben in den Papierkorb zur aktiven Inbox.
 Nach **Fertig** steht der Vorgang unter **Abgeschlossen** und vorhandene
 WAV-Beilagen bleiben abspielbar. Beim Verschieben in den **Papierkorb**
 loescht die App saemtliche noch vorhandenen WAVs des Vorgangs am Ablageort.
-Das gilt fuer offene und abgeschlossene Vorgaenge.
+Das gilt fuer neue und abgeschlossene Vorgaenge.
 Im Papierkorb liegt ausschliesslich die JSON. Wiederherstellen bringt die
 JSON zurueck. Eine erneute Lieferung desselben Vorgangs darf geloeschte WAVs
 nicht wiederherstellen.
@@ -24,7 +24,7 @@ Player-Metadaten, Dateizugriff und JSON-Transport referenzieren dieselbe
 Beilage. Der Spool wird nach bestätigter Ablage des vollständigen Pakets
 oder der JSON mit Audio-Fehlerhinweis bereinigt. Die
 [Spezifikation für den Abholer v1](vorgang-v1/AUDIO.md)
-beschreibt den geplanten Transport.
+beschreibt den im App-Paket enthaltenen SSH-Transport.
 
 Die App liefert Beilagen über `telepraxis-app.php?ajax=audio` aus. PHP braucht
 Leserechte an WAVs und Schreibrechte am Audioordner sowie seinem Elternordner.

@@ -339,6 +339,15 @@ Der eigentliche Nutzinhalt steckt verschlüsselt in `ct`.
 
 ## Funktionen des Fetch-Scripts
 
+Der Abholer verarbeitet auf demselben SSH-Kanal `*.json.enc` v1 und
+`*.kienzlepaket`. Für Pakete prüft er JWE, ZIP, Vorgangs-ID und WAV-Zuordnung
+lokal mit dem privaten Empfängerschlüssel. Die JSON wird sichtbar, sobald
+alle zugehörigen WAVs dauerhaft unter `inbox/<vorgang_id>/audio/` liegen.
+Paket und Ersatz-JSON werden mit Dateiname und SHA-256 der verschlüsselten
+Lieferdatei quittiert. Kienzlefon bereinigt diese Lieferungen anhand der
+Quittungen. Für bisherige JSON-only-Lieferungen gilt die konfigurierte
+Löschung nach erfolgreichem Abruf. [Audiovertrag](docs/vorgang-v1/AUDIO.md)
+
 Das Shell-Script kann:
 
 - Server, Benutzer, Pfade und Ports im Header konfigurieren

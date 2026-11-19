@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# v1.8 (19.11.2026): Paketfähigen Abholer und Python-cryptography je Zielsystem installieren.
 # zielserver-vorbereiten-v1.8.sh
 #
 # v1.8
@@ -63,6 +64,7 @@ UPSTREAM="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Int
 WEB_FILES=(telepraxis-app.php telepraxis-sms.php sms-config.php telepraxis-sms-queue.php
            telepraxis-telephony.php telepraxis-telephony.js telepraxis-telephony-schema.json)
 FETCH_FILE="telepraxis_fetch_and_decrypt.sh"
+AUDIO_HELPER="telepraxis-audio-delivery.py"
 SOURCE_STAGE=""
 
 BASE_ROOT="/srv/telepraxis"
@@ -89,9 +91,9 @@ install_php_extension_packages() {
   if command -v apt-get >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y php-curl php-xml php-sqlite3
+    apt-get install -y php-curl php-xml php-sqlite3 python3-cryptography jq openssh-client openssl
   else
-    echo "Hinweis: apt-get nicht gefunden. Bitte php-curl, php-xml und php-sqlite3 manuell installieren."
+    echo "Hinweis: apt-get nicht gefunden. Bitte PHP-Erweiterungen, OpenSSH-Client, OpenSSL, jq und Python-cryptography manuell installieren."
   fi
 }
 
@@ -120,7 +122,7 @@ stage_programs() {
   local source_dir="$1" name
   SOURCE_STAGE="$(mktemp -d)"
   trap 'rm -rf -- "$SOURCE_STAGE"' EXIT
-  for name in "${WEB_FILES[@]}" "$FETCH_FILE"; do
+  for name in "${WEB_FILES[@]}" "$FETCH_FILE" "$AUDIO_HELPER"; do
     if [[ -n "$source_dir" ]]; then
       if [[ ! -f "$source_dir/$name" || -L "$source_dir/$name" ]]; then
         echo "Regulaere Paketdatei fehlt: $source_dir/$name" >&2
@@ -649,6 +651,10 @@ main() {
 
   if command -v php >/dev/null 2>&1; then lint_web_files; fi
   install_php_extension_packages
+  need_cmd jq
+  need_cmd scp
+  need_cmd ssh
+  python3 "$SOURCE_STAGE/$AUDIO_HELPER" --help >/dev/null || { echo "Python 3 mit cryptography fehlt." >&2; return 1; }
   need_cmd php
   verify_php_extensions
   lint_web_files
@@ -662,6 +668,8 @@ main() {
     install -m 0644 "$SOURCE_STAGE/$app_component" "$WEBROOT_DIR/$app_component"
   done
 
+  backup_if_exists "$BIN_DIR/$AUDIO_HELPER"
+  install -m 0644 "$SOURCE_STAGE/$AUDIO_HELPER" "$BIN_DIR/$AUDIO_HELPER"
   backup_if_exists "$fetch_script"
   install -m 0755 -o "$target_user" -g "$target_user" "$SOURCE_STAGE/$FETCH_FILE" "$fetch_script"
 
