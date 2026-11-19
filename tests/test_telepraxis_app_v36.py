@@ -101,7 +101,7 @@ chdir($argv[1]);
 $_SERVER['DOCUMENT_ROOT'] = $argv[1];
 $_SERVER['REQUEST_METHOD'] = isset($input['action']) ? 'POST' : 'GET';
 $_POST = $input;
-$_GET = isset($input['action']) ? [] : ['ajax' => 'list'];
+$_GET = isset($input['action']) ? [] : ['ajax' => 'list'] + $input;
 $_REQUEST = array_merge($_GET, $_POST);
 session_save_path($argv[2]);
 session_id('telepraxis-v36-integration-test');
@@ -214,9 +214,80 @@ require './telepraxis-app.php';
     def test_recordings_missing_metadata_keeps_legacy_app_unchanged(self):
         self.assertEqual(self.card_view()["recordings"], [])
 
+    def test_multiple_requests_keep_ids_audio_and_attribution_through_transfer_and_trash(self):
+        fixture = ROOT / "docs/vorgang-v1/beispiele/mehrere-anliegen.json"
+        entry = json.loads(fixture.read_text(encoding="utf-8"))
+        visit = entry["payload"]["_kienzlefon"]["vorgang_id"]
+        entry["payload"]["anliegen_liste"][0]["medikamente"] = "Mittel A\nMittel Ä"
+        self.card.unlink()
+        self.card = self.site / "inbox" / f"{visit}.json"
+        self.write_card(entry)
+        wav = self.card.parent / visit / "audio" / "a-002-medikament-01.wav"
+        wav.parent.mkdir(parents=True)
+        wav.write_bytes(b"synthetic WAV fixture")
+        extra = wav.with_name("unlisted.wav")
+        extra.write_bytes(b"another WAV")
+
+        code, listed = self.request({})
+        self.assertEqual(code, 200)
+        self.assertEqual(len(listed["entries"]), 1)
+        view = listed["entries"][0]
+        self.assertEqual([part["label"] for part in view["anliegen"]["parts"]], ["Rezept", "Rezept", "Überweisung"])
+        self.assertEqual(view["anliegen"]["parts"][0]["body"], "Mittel A\nMittel Ä")
+        self.assertEqual(view["recordings"][0]["label"], "2. Rezept · Medikament 1")
+        self.assertIn("ajax=audio", view["recordings"][0]["url"])
+
+        self.assertEqual(self.action("set_status", status="in_bearbeitung")[0], 200)
+        original = self.card.read_bytes()
+        for user in ("Dr. Müller", "Julia"):
+            self.assertEqual(self.action("soft_delete", benutzer=user)[0], 409)
+            self.assertEqual(self.card.read_bytes(), original)
+            self.assertTrue(wav.is_file())
+            self.assertTrue(extra.is_file())
+        self.assertEqual(self.action("set_status", status="abgeschlossen")[0], 409)
+        self.assertEqual(self.action("set_anliegen", anliegen_id="a-002", done="1")[0], 200)
+        self.assertEqual(self.action("toggle_urgent", benutzer="Julia")[0], 200)
+        self.assertEqual(self.card_view()["last_user"], "Dr. Müller")
+        self.assertEqual(self.action("set_status", status="in_bearbeitung", benutzer="Julia")[0], 200)
+        self.assertEqual(self.action("set_anliegen", anliegen_id="a-002", done="0")[0], 409)
+        self.assertEqual(self.action("add_comment", comment_text="Veraltete Ansicht")[0], 409)
+        for item in ("a-001", "a-003"):
+            self.assertEqual(self.action("set_anliegen", anliegen_id=item, done="1", benutzer="Julia")[0], 200)
+        view = self.card_view()
+        self.assertTrue(view["anliegen"]["complete"])
+        self.assertEqual(view["status"], "in_bearbeitung")
+        self.assertEqual([part["completed_by"] for part in view["anliegen"]["parts"]], ["Julia", "Dr. Müller", "Julia"])
+        self.assertEqual(self.action("set_status", status="abgeschlossen", benutzer="Julia")[0], 200)
+        self.assertTrue(wav.is_file())
+        self.assertEqual(len(self.card_view()["recordings"]), 1)
+        self.assertEqual(self.action("soft_delete", benutzer="Julia")[0], 200)
+        self.assertFalse(wav.exists())
+        self.assertFalse(extra.exists())
+        self.assertTrue((self.card.parent / "papierkorb" / self.card.name).is_file())
+        self.login_admin()
+        self.assertEqual(self.action("restore", benutzer="Julia")[0], 200)
+        self.assertEqual(self.card_view()["recordings"], [])
+        self.assertEqual(self.saved_card()["payload"], entry["payload"])
+
+    def test_malformed_requests_and_audio_failure_show_original_content(self):
+        examples = ROOT / "docs/vorgang-v1/beispiele"
+        invalid = json.loads((examples / "ungueltige-anliegen-ids.json").read_text(encoding="utf-8"))
+        self.write_card(invalid)
+        view = self.card_view()
+        self.assertFalse(view["anliegen"]["valid"])
+        for part in view["anliegen"]["parts"]:
+            self.assertIn(part["body"], view["body"])
+        self.assertEqual(self.action("set_status", status="in_bearbeitung")[0], 200)
+        self.assertEqual(self.action("set_anliegen", anliegen_id="a-001", done="1")[0], 409)
+        fallback = json.loads((examples / "audio-fehler.json").read_text(encoding="utf-8"))
+        self.write_card(fallback)
+        self.assertTrue(self.card_view()["audio_failed"])
+        self.assertEqual(self.card_view()["recordings"], [])
+
     def test_user_and_workplace_are_stored_and_returned_separately(self):
         user = "Dr. " + ("Ä" * 60)
         self.assertEqual(len(user), 64)
+        self.assertEqual(self.action("set_status", status="in_bearbeitung", benutzer=user)[0], 200)
         code, response = self.action(
             "set_status",
             status="abgeschlossen",
@@ -267,6 +338,9 @@ require './telepraxis-app.php';
         legacy["app"]["status_updated_arbeitsplatz"] = "AltBearbeiter"
         self.write_card(legacy)
         self.assertEqual(self.card_view()["last_user"], "AltBearbeiter")
+        self.assertEqual(self.action(
+            "set_status", status="in_bearbeitung", benutzer=OMIT, workplace="legacy-client",
+        )[0], 200)
 
         code, response = self.action(
             "set_status",
@@ -327,6 +401,7 @@ require './telepraxis-app.php';
             self.assertEqual(database.execute("SELECT COUNT(*) FROM sms_queue").fetchone()[0], 1)
 
     def test_soft_delete_and_restore_preserve_comments_status_and_attribution(self):
+        self.assertEqual(self.action("set_status", status="neu")[0], 200)
         before = self.card_view()
         expected_comments = [
             (comment["text"], comment["created_at"], comment["benutzer"], comment["workplace"])
@@ -337,14 +412,19 @@ require './telepraxis-app.php';
             "soft_delete", benutzer="Lösch Benutzer", workplace="archiv-1"
         )
         self.assertEqual(code, 200, deleted)
-        deleted_app = self.saved_card()["app"]
+        archived = self.card.parent / "papierkorb" / self.card.name
+        self.assertFalse(self.card.exists())
+        deleted_app = json.loads(archived.read_text())["app"]
         self.assertTrue(deleted_app["deleted"])
         self.assertEqual(deleted_app["deleted_benutzer"], "Lösch Benutzer")
         self.assertEqual(deleted_app["deleted_arbeitsplatz"], "archiv-1")
         self.assertEqual(deleted_app["status"], before["status"])
         self.assertEqual(deleted_app["dringend"], before["urgent"])
+        self.assertEqual(self.request({"trash": "1"})[1]["entries"], [])
 
         self.login_admin()
+        self.assertEqual(self.request({})[1]["entries"], [])
+        self.assertTrue(self.request({"trash": "1"})[1]["entries"][0]["deleted"])
         code, restored = self.action(
             "restore", benutzer="Admin Nutzer", workplace="verwaltung-1"
         )
@@ -359,6 +439,85 @@ require './telepraxis-app.php';
             for comment in restored["entry"]["comments"]
         ]
         self.assertEqual(actual_comments, expected_comments)
+        self.assertFalse(archived.exists())
+        self.assertTrue(self.card.exists())
+
+    def test_existing_deleted_records_are_moved_and_skipped_when_trash_is_closed(self):
+        old = copy.deepcopy(self.base_entry)
+        old["app"]["deleted"] = True
+        self.write_card(old)
+        self.assertEqual(self.request({})[1]["entries"], [])
+        archived = self.card.parent / "papierkorb" / self.card.name
+        self.assertEqual(json.loads(archived.read_text()), old)
+        self.assertFalse(self.card.exists())
+
+        # A directory that cannot safely be opened must not affect the ordinary list.
+        real_trash = archived.parent.rename(self.root / "archived")
+        archived.parent.symlink_to(real_trash, target_is_directory=True)
+        self.login_admin()
+        self.assertEqual(self.request({})[0], 200)
+        self.assertEqual(self.request({"trash": "1"})[0], 500)
+
+    def test_collisions_keep_all_records_on_archive_migration_and_restore(self):
+        self.assertEqual(self.action("set_status", status="abgeschlossen")[0], 200)
+        code, deleted = self.action("soft_delete")
+        self.assertEqual((code, deleted["entry"]["file"]), (200, "example.json"))
+        archived = self.card.parent / "papierkorb" / self.card.name
+        archive_before = archived.read_bytes()
+
+        legacy = copy.deepcopy(self.base_entry)
+        legacy["id"] = "legacy"
+        legacy["app"]["deleted"] = True
+        self.write_card(legacy)
+        self.assertEqual(self.request({})[1]["entries"], [])
+        self.assertEqual(json.loads(archived.with_name("example-2.json").read_text()), legacy)
+
+        fresh = copy.deepcopy(self.base_entry)
+        fresh["id"] = "fresh"
+        fresh["app"]["status"] = "neu"
+        self.write_card(fresh)
+        code, deleted = self.action("soft_delete")
+        self.assertEqual((code, deleted["entry"]["file"]), (200, "example-3.json"))
+        self.assertEqual(archived.read_bytes(), archive_before)
+
+        self.login_admin()
+        listed = self.request({"trash": "1"})[1]["entries"]
+        self.assertEqual({row["file"] for row in listed}, {"example.json", "example-2.json", "example-3.json"})
+        self.write_card(self.base_entry)
+        active_before = self.card.read_bytes()
+        code, restored = self.action("restore")
+        self.assertEqual((code, restored["entry"]["file"]), (200, "example-4.json"))
+        self.assertEqual(restored["entry"]["status"], "abgeschlossen")
+        self.assertEqual(self.action("restore")[0], 409)
+        self.assertEqual(self.card.read_bytes(), active_before)
+        self.assertEqual(self.action("purge", file="example-2.json")[0], 200)
+        self.assertTrue(self.card.with_name("example-4.json").exists())
+        code, restored = self.action("restore", file="example-3.json")
+        self.assertEqual((code, restored["entry"]["id"]), (200, "fresh"))
+
+    def test_filename_collision_with_queued_sms_keeps_both_files_and_history(self):
+        self.assertEqual(self.action("send_sms", sms_text="Testnachricht")[0], 202)
+        self.assertEqual(self.action("set_status", status="abgeschlossen")[0], 200)
+        archived = self.card.parent / "papierkorb" / self.card.name
+        archived.parent.mkdir()
+        archived.write_text('{"id":"older","app":{"deleted":true}}')
+        active_before, archive_before = self.card.read_bytes(), archived.read_bytes()
+        code, response = self.action("soft_delete")
+        self.assertEqual(code, 409)
+        self.assertIn("SMS", response["error"])
+        self.assertEqual((self.card.read_bytes(), archived.read_bytes()), (active_before, archive_before))
+        self.assertEqual(list(archived.parent.iterdir()), [archived])
+        self.assertTrue(any(item.get("sms_job_id") for item in self.card_view()["comments"]))
+
+        # Older releases left deleted JSON in the inbox. Surface a blocked migration to the admin.
+        legacy = self.saved_card()
+        legacy["app"]["deleted"] = True
+        self.write_card(legacy)
+        self.login_admin()
+        self.assertIsNone(self.request({})[1]["trash_warning"])
+        self.assertIn("Inbox", self.request({"trash": "1"})[1]["trash_warning"])
+        self.assertEqual(self.saved_card(), legacy)
+        self.assertEqual(archived.read_bytes(), archive_before)
 
 
 if __name__ == "__main__":

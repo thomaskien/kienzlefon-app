@@ -20,6 +20,8 @@ id_ed25519*
 inbox/
 .encrypted/
 *.json.enc
+# Public test vector with synthetic inputs.
+!/docs/vorgang-paket-v1-test/20261118_100000_000002.json.enc
 *.sqlite
 *.sqlite3
 *.db
@@ -32,3 +34,6 @@ inbox/
 # Dependency/cache folders if added later
 vendor/
 node_modules/
+
+# Lokal gebautes Komponentenpaket
+/dist/kienzlefon-app.tar.gz

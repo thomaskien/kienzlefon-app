@@ -3,6 +3,8 @@
 #
 # Version 1.0 (2026-09-29)
 # Changelog:
+# - SMS-Empfangsmodule im selben Update wie Worker und Webapp pruefen und installieren.
+# - App 3.7: Telefoniedateien ausliefern und bestehende App-Optionen erhalten.
 # - Initialer, eigenstaendiger Updater mit lokaler/Online-Quelle, sicherer
 #   Konfigurationsuebernahme, privaten Backups, Dienstkoordination und Rollback.
 
@@ -44,11 +46,19 @@ WEB_FILES = (
     "telepraxis-sms.php",
     "sms-config.php",
     "telepraxis-sms-queue.php",
+    "telepraxis-telephony.php",
+    "telepraxis-telephony.js",
+    "telepraxis-telephony-schema.json",
 )
-WORKER_FILES = (
+WORKER_CORE_FILES = (
     "telepraxis-sms-worker.php",
     "telepraxis-sms.php",
     "telepraxis-sms-queue.php",
+)
+WORKER_FILES = WORKER_CORE_FILES + (
+    "telepraxis-sms-journal.php",
+    "telepraxis-sms-receive-store.php",
+    "telepraxis-sms-receive.php",
 )
 APP_CONSTANTS = (
     "TELEPRAXIS_INBOX_DIR",
@@ -56,6 +66,10 @@ APP_CONSTANTS = (
     "TELEPRAXIS_POLL_INTERVAL_MS",
     "TELEPRAXIS_DEFAULT_TIMEZONE",
     "TELEPRAXIS_WORKPLACE_MAXLEN",
+)
+APP_OPTIONAL_CONSTANTS = (
+    "TELEPRAXIS_USER_MAXLEN", "TELEPRAXIS_T2MED_ENABLED", "TELEPRAXIS_T2MED_BASE_URL",
+    "TELEPRAXIS_RECORDINGS_BASE_URL", "TELEPRAXIS_AUDIO_RETENTION_DAYS",
 )
 SMS_CONSTANTS = ("TP_SMS_CREDENTIALS_FILE",)
 CONFIG_CONSTANTS = ("TP_SMS_CREDENTIALS_FILE", "TP_SMS_CONFIG_ADMIN_PASSWORD")
@@ -194,7 +208,8 @@ def php_tokens(php: str, source: str, label: str) -> list[dict[str, object]]:
     return result["tokens"]
 
 
-def constant_spans(php: str, source: str, names: tuple[str, ...], label: str) -> dict[str, tuple[int, int]]:
+def constant_spans(php: str, source: str, names: tuple[str, ...], label: str,
+                   optional: tuple[str, ...] = ()) -> dict[str, tuple[int, int]]:
     tokens = php_tokens(php, source, label)
     offsets: list[tuple[int, int]] = []
     position = 0
@@ -208,7 +223,7 @@ def constant_spans(php: str, source: str, names: tuple[str, ...], label: str) ->
         raise UpdateError(f"{label}: Token-Grenzen konnten nicht sicher bestimmt werden.")
 
     insignificant = {"T_WHITESPACE", "T_COMMENT", "T_DOC_COMMENT"}
-    found: dict[str, list[tuple[int, int]]] = {name: [] for name in names}
+    found: dict[str, list[tuple[int, int]]] = {name: [] for name in (*names, *optional)}
     curly_depth = 0
     index = 0
     while index < len(tokens):
@@ -271,22 +286,29 @@ def constant_spans(php: str, source: str, names: tuple[str, ...], label: str) ->
 
     result: dict[str, tuple[int, int]] = {}
     for name, spans in found.items():
+        if not spans and name in optional:
+            continue
         if len(spans) != 1:
             raise UpdateError(f"{label}: Konstante {name} fehlt oder ist mehrfach deklariert.")
         result[name] = spans[0]
     return result
 
 
-def patch_constants(php: str, candidate: Path, installed: Path, names: tuple[str, ...]) -> None:
+def patch_constants(php: str, candidate: Path, installed: Path, names: tuple[str, ...],
+                    optional: tuple[str, ...] = ()) -> None:
     try:
         new_source = candidate.read_text(encoding="utf-8")
         old_source = installed.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         raise UpdateError("Eine PHP-Datei konnte nicht als UTF-8 gelesen werden.") from exc
-    old_spans = constant_spans(php, old_source, names, f"Bestehende Datei {installed.name}")
-    new_spans = constant_spans(php, new_source, names, f"Neue Datei {candidate.name}")
+    old_spans = constant_spans(php, old_source, names, f"Bestehende Datei {installed.name}", optional)
+    new_spans = constant_spans(php, new_source, names, f"Neue Datei {candidate.name}", optional)
+    missing = old_spans.keys() - new_spans.keys()
+    if missing:
+        raise UpdateError(f"{candidate.name}: Quellstand kann bestehende Einstellungen nicht uebernehmen: "
+                          + ", ".join(sorted(missing)))
     replacements = []
-    for name in names:
+    for name in old_spans:
         old_start, old_end = old_spans[name]
         new_start, new_end = new_spans[name]
         replacements.append((new_start, new_end, old_source[old_start:old_end]))
@@ -604,7 +626,9 @@ def main() -> int:
         raise UpdateError("Das Sicherungsverzeichnis muss ausserhalb des Webroots liegen.")
 
     source_dir = None
-    if args.source_dir:
+    if args.source_dir is not None:
+        if not args.source_dir:
+            raise UpdateError("Quellverzeichnis fehlt.")
         source_dir = require_real_directory(Path(args.source_dir), "Quellverzeichnis")
         if overlaps(source_dir, webroot):
             raise UpdateError("Quellverzeichnis und Webroot duerfen sich nicht ueberschneiden.")
@@ -624,15 +648,17 @@ def main() -> int:
     installed_web = {name: webroot / name for name in WEB_FILES}
     for name in WEB_FILES[:3]:
         require_regular_file(installed_web[name], "Bestehende Webdatei")
-    queue_target = installed_web["telepraxis-sms-queue.php"]
-    if queue_target.exists() or queue_target.is_symlink():
-        require_regular_file(queue_target, "Bestehende Queue-Bibliothek")
+    for name in WEB_FILES[3:]:
+        target = installed_web[name]
+        if target.exists() or target.is_symlink():
+            require_regular_file(target, "Bestehende Zusatzdatei")
 
     installed_worker: dict[str, Path] = {}
     if worker_dir is not None:
         installed_worker = {name: worker_dir / name for name in WORKER_FILES}
-        for path in installed_worker.values():
-            require_regular_file(path, "Bestehende SMS-Worker-Datei")
+        for name, path in installed_worker.items():
+            if name in WORKER_CORE_FILES or path.exists() or path.is_symlink():
+                require_regular_file(path, "Bestehende SMS-Worker-Datei")
 
     php = check_runtime()
     needed = set(WEB_FILES)
@@ -653,6 +679,8 @@ def main() -> int:
         source_files = temporary / "source"
         source_files.mkdir(mode=0o700)
         for name, data in source_data.items():
+            if not data.strip():
+                raise UpdateError(f"Leere Quelldatei: {name}")
             path = source_files / name
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "wb") as handle:
@@ -662,11 +690,18 @@ def main() -> int:
         prepared_web.mkdir(mode=0o700)
         for name in WEB_FILES:
             shutil.copyfile(source_files / name, prepared_web / name)
-        patch_constants(php, prepared_web / "telepraxis-app.php", installed_web["telepraxis-app.php"], APP_CONSTANTS)
+        patch_constants(php, prepared_web / "telepraxis-app.php", installed_web["telepraxis-app.php"],
+                        APP_CONSTANTS, APP_OPTIONAL_CONSTANTS)
         patch_constants(php, prepared_web / "telepraxis-sms.php", installed_web["telepraxis-sms.php"], SMS_CONSTANTS)
         patch_constants(php, prepared_web / "sms-config.php", installed_web["sms-config.php"], CONFIG_CONSTANTS)
         for name in WEB_FILES:
-            lint_php(php, prepared_web / name)
+            if name.endswith(".php"):
+                lint_php(php, prepared_web / name)
+            elif name.endswith(".json"):
+                try:
+                    json.loads((prepared_web / name).read_bytes())
+                except (ValueError, UnicodeError) as exc:
+                    raise UpdateError(f"JSON-Syntaxpruefung fehlgeschlagen: {name}") from exc
 
         prepared_worker: Path | None = None
         if worker_dir is not None:

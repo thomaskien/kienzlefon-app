@@ -1,0 +1,330 @@
+{
+  "contract_version": "1.0.2",
+  "scenarios": [
+    {
+      "id": "live-path",
+      "steps": [
+        {
+          "event": "external-entry",
+          "phase": "other",
+          "expected": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "event": "classic-menu",
+          "phase": "ivr",
+          "expected": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "event": "ai-dial-attempt",
+          "phase": "other",
+          "expected": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "event": "ai-connected",
+          "phase": "ai",
+          "expected": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "event": "queue-joined",
+          "phase": "queue",
+          "expected": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "event": "staff-ringing",
+          "phase": "queue",
+          "expected": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "event": "staff-connected",
+          "phase": "human",
+          "expected": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "event": "hangup",
+          "phase": "ended",
+          "expected": [
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "counter_order": [
+        "waiting",
+        "ivr",
+        "ai"
+      ],
+      "expected_daily_calls": 1
+    },
+    {
+      "id": "concurrent-last-members",
+      "initial_members": [
+        "201",
+        "202"
+      ],
+      "initial_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+      "commands": [
+        {
+          "extension": "201",
+          "member": false,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17"
+        },
+        {
+          "extension": "202",
+          "member": false,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17"
+        }
+      ],
+      "expected_states": [
+        "applied",
+        "rejected"
+      ],
+      "second_error": "revision_conflict",
+      "remaining": [
+        "202"
+      ],
+      "fresh_retry_error": "last_member"
+    },
+    {
+      "id": "revocation-before-apply",
+      "sequence": [
+        "accepted",
+        "admin-revokes-disable",
+        "worker-checks-current-policy"
+      ],
+      "expected_state": "rejected",
+      "expected_error": "revision_conflict",
+      "member_unchanged": true
+    },
+    {
+      "id": "lost-apply-response",
+      "sequence": [
+        "accepted",
+        "applied-on-pbx",
+        "transport-lost",
+        "get-same-request"
+      ],
+      "expected_state": "applied",
+      "execution_count": 1
+    },
+    {
+      "id": "control-service-restart",
+      "old_epoch": "11111111-1111-4111-8111-111111111111",
+      "new_epoch": "11111111-1111-4111-8111-111111111111",
+      "preserve_runtime_memberships": true
+    },
+    {
+      "id": "asterisk-restart",
+      "old_epoch": "11111111-1111-4111-8111-111111111111",
+      "new_epoch": "22222222-2222-4222-8222-222222222222",
+      "restore_admin_defaults": true,
+      "pending_state": "expired",
+      "pending_error": "pbx_restarted",
+      "replay_applies": false
+    },
+    {
+      "id": "rot-without-red-phone",
+      "red_enabled": false,
+      "normal_members": [
+        "201",
+        "202"
+      ],
+      "specialist_members": [
+        "301"
+      ],
+      "first_attempt": null,
+      "fallback": [
+        "301"
+      ]
+    },
+    {
+      "id": "independent-specialist",
+      "normal_members": [
+        "201",
+        "202"
+      ],
+      "specialist_members": [
+        "301"
+      ],
+      "first_attempt": "configured-red-phone",
+      "fallback": [
+        "301"
+      ]
+    },
+    {
+      "id": "no-client-scope-escalation",
+      "registered_client": "empfang-1",
+      "submitted_client": "not-registered",
+      "expected_http": 400,
+      "error": "unknown_client"
+    },
+    {
+      "id": "stale-cache",
+      "source_age_ms": 9000,
+      "proxy_delay_ms": 500,
+      "browser_elapsed_ms": 600,
+      "expected_current": false,
+      "expected_counts": null
+    },
+    {
+      "id": "control-outage",
+      "live_status": "unavailable",
+      "routing_available": false,
+      "ami_statistics_healthy": true,
+      "statistics_status": "complete"
+    },
+    {
+      "id": "old-command-after-retention",
+      "expired_command_id_pruned": true,
+      "post_expected_http": 409,
+      "post_error": "request_expired",
+      "get_expected_http": 404
+    },
+    {
+      "id": "app-token-scope",
+      "paths_denied": [
+        "/api/v1/telephony",
+        "/api/v1/patients/search",
+        "/api/v1/fhir/import",
+        "/api/v1/calls"
+      ],
+      "expected_http": 403
+    },
+    {
+      "id": "http-fault-isolation",
+      "cases": [
+        {
+          "id": "control-network",
+          "endpoint": "/api/v1/telephony/overview",
+          "method": "GET",
+          "response_fixture": "overview-control-unavailable-statistics-current",
+          "expected_http": 200,
+          "unavailable_parts": [
+            "routing_control",
+            "live_counters"
+          ]
+        },
+        {
+          "id": "control-authentication",
+          "endpoint": "/api/v1/telephony/overview",
+          "method": "GET",
+          "response_fixture": "overview-control-unavailable-statistics-current",
+          "expected_http": 200,
+          "unavailable_parts": [
+            "routing_control",
+            "live_counters"
+          ]
+        },
+        {
+          "id": "control-schema",
+          "endpoint": "/api/v1/telephony/overview",
+          "method": "GET",
+          "response_fixture": "overview-control-invalid-statistics-current",
+          "expected_http": 200,
+          "unavailable_parts": [
+            "routing_control",
+            "live_counters"
+          ]
+        },
+        {
+          "id": "control-epoch",
+          "endpoint": "/api/v1/telephony/overview",
+          "method": "GET",
+          "response_fixture": "overview-control-invalid-statistics-current",
+          "expected_http": 200,
+          "unavailable_parts": [
+            "routing_control",
+            "live_counters"
+          ]
+        },
+        {
+          "id": "proxy-partial",
+          "endpoint": "/telepraxis-telephony.php?action=status",
+          "method": "GET",
+          "response_fixture": "overview-control-invalid-statistics-current",
+          "expected_http": 200
+        },
+        {
+          "id": "proxy-upstream_unreachable",
+          "endpoint": "/telepraxis-telephony.php?action=status",
+          "method": "GET",
+          "response_fixture": "error-upstream_unreachable",
+          "expected_http": 503
+        },
+        {
+          "id": "proxy-upstream_authentication_failed",
+          "endpoint": "/telepraxis-telephony.php?action=status",
+          "method": "GET",
+          "response_fixture": "error-upstream_authentication_failed",
+          "expected_http": 503
+        },
+        {
+          "id": "proxy-state_unavailable",
+          "endpoint": "/telepraxis-telephony.php?action=status",
+          "method": "GET",
+          "response_fixture": "error-state_unavailable",
+          "expected_http": 503
+        },
+        {
+          "id": "proxy-upstream_timeout",
+          "endpoint": "/telepraxis-telephony.php?action=status",
+          "method": "GET",
+          "response_fixture": "error-upstream_timeout",
+          "expected_http": 504
+        },
+        {
+          "id": "write-invalid-response",
+          "endpoint": "/api/v1/extension-routing",
+          "method": "POST",
+          "response_fixture": "request-unknown-invalid-response",
+          "expected_http": 202
+        },
+        {
+          "id": "query-invalid-response",
+          "endpoint": "/api/v1/extension-routing/requests/{request_id}",
+          "method": "GET",
+          "response_fixture": "request-unknown-invalid-response",
+          "expected_http": 200
+        },
+        {
+          "id": "control-routing-only-schema",
+          "endpoint": "/api/v1/telephony/overview",
+          "method": "GET",
+          "response_fixture": "overview-routing-invalid-live-current",
+          "expected_http": 200,
+          "unavailable_parts": [
+            "routing_control"
+          ]
+        }
+      ]
+    }
+  ]
+}

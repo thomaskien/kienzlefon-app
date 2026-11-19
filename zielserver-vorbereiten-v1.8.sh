@@ -5,6 +5,9 @@
 # von Dr. Thomas Kienzle / ChatGPT
 #
 # Changelog
+# 2026-11-18: Paketquelle vorab pruefen; Schluessel separat fuer das Fon-Setup vorbereiten.
+# 2026-11-18 (Version unveraendert: v1.8)
+# - installiert Telefonie-Proxy, Browsermodul und Schema fuer App 3.7
 # 2026-09-29 (Version unveraendert: v1.8)
 # - SMS-Queue-Bibliothek und PDO-SQLite fuer die optionale Queue-Anbindung bereitstellen; Worker bleibt separat einzurichten
 # 2026-09-29 (Version unveraendert: v1.8)
@@ -56,14 +59,16 @@
 
 set -euo pipefail
 
-APP_URL="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main/telepraxis-app.php"
-SMS_LIB_URL="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main/telepraxis-sms.php"
-SMS_QUEUE_URL="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main/telepraxis-sms-queue.php"
-SMS_CONFIG_URL="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main/sms-config.php"
-FETCH_URL="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main/telepraxis_fetch_and_decrypt.sh"
+UPSTREAM="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main"
+WEB_FILES=(telepraxis-app.php telepraxis-sms.php sms-config.php telepraxis-sms-queue.php
+           telepraxis-telephony.php telepraxis-telephony.js telepraxis-telephony-schema.json)
+FETCH_FILE="telepraxis_fetch_and_decrypt.sh"
+SOURCE_STAGE=""
 
 BASE_ROOT="/srv/telepraxis"
 WEBROOT_DIR="/var/www/html"
+BIN_DIR="/usr/local/bin"
+UNIT_DIR="/etc/systemd/system"
 WEB_USER="www-data"
 
 require_root() {
@@ -91,32 +96,53 @@ install_php_extension_packages() {
 }
 
 verify_php_extensions() {
-  php -m | grep -iq '^pdo_sqlite$' || {
+  local modules
+  modules="$(php -m)"
+  grep -iq '^pdo_sqlite$' <<< "$modules" || {
     echo "PHP-PDO-SQLite-Unterstuetzung fehlt. Bitte php-sqlite3 installieren."
     exit 1
   }
-  php -m | grep -iq '^curl$' || {
+  grep -iq '^curl$' <<< "$modules" || {
     echo "PHP-cURL-Unterstuetzung fehlt. Bitte php-curl installieren."
     exit 1
   }
-  php -m | grep -iq '^dom$' || {
+  grep -iq '^dom$' <<< "$modules" || {
     echo "PHP-DOM-Unterstuetzung fehlt. Bitte php-xml installieren."
     exit 1
   }
-  php -m | grep -iq '^SimpleXML$' || {
+  grep -iq '^SimpleXML$' <<< "$modules" || {
     echo "PHP-SimpleXML-Unterstuetzung fehlt. Bitte php-xml installieren."
     exit 1
   }
 }
 
-fetch_url_to_file() {
-  local url="$1"
-  local target="$2"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$target"
-  else
-    wget -qO "$target" "$url"
-  fi
+stage_programs() {
+  local source_dir="$1" name
+  SOURCE_STAGE="$(mktemp -d)"
+  trap 'rm -rf -- "$SOURCE_STAGE"' EXIT
+  for name in "${WEB_FILES[@]}" "$FETCH_FILE"; do
+    if [[ -n "$source_dir" ]]; then
+      if [[ ! -f "$source_dir/$name" || -L "$source_dir/$name" ]]; then
+        echo "Regulaere Paketdatei fehlt: $source_dir/$name" >&2
+        return 1
+      fi
+      cp -- "$source_dir/$name" "$SOURCE_STAGE/$name"
+    elif command -v curl >/dev/null 2>&1; then
+      curl -fsSL "$UPSTREAM/$name" -o "$SOURCE_STAGE/$name"
+    else
+      wget -qO "$SOURCE_STAGE/$name" "$UPSTREAM/$name"
+    fi
+    [[ -s "$SOURCE_STAGE/$name" ]] || { echo "Leere Programmdatei: $name" >&2; return 1; }
+  done
+  bash -n "$SOURCE_STAGE/$FETCH_FILE"
+  python3 -m json.tool "$SOURCE_STAGE/telepraxis-telephony-schema.json" >/dev/null
+}
+
+lint_web_files() {
+  local name
+  for name in "${WEB_FILES[@]}"; do
+    if [[ "$name" == *.php ]]; then php -l "$SOURCE_STAGE/$name" >/dev/null; fi
+  done
 }
 
 ask_default() {
@@ -153,12 +179,12 @@ ask_password_or_generate() {
 ask_user() {
   local u=""
   while :; do
-    read -r -p "Lokaler Zielserver-Benutzer: " u
+    read -r -p "Lokaler Zielserver-Benutzer: " u || return 1
     if [[ "$u" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
       printf '%s\n' "$u"
       return 0
     fi
-    echo "Ungueltiger Benutzername. Erlaubt: a-z, 0-9, _, -, Beginn mit Buchstabe/_"
+    echo "Ungueltiger Benutzername. Erlaubt: a-z, 0-9, _, -, Beginn mit Buchstabe/_" >&2
   done
 }
 
@@ -196,15 +222,10 @@ ensure_user() {
 ensure_dirs() {
   local user="$1"
   local shared_group="$2"
-  local base="$3"
-  local ssh_dir="$4"
-  local pull_dir="$5"
-  local inbox_dir="$6"
-  local config_dir="$7"
+  local pull_dir="$3"
+  local inbox_dir="$4"
+  local config_dir="$5"
 
-  install -d -o root -g root -m 0755 "$BASE_ROOT"
-  install -d -o "$user" -g "$shared_group" -m 0710 "$base"
-  install -d -o "$user" -g "$user" -m 0700 "$ssh_dir"
   install -d -o "$user" -g "$user" -m 0750 "$pull_dir"
   install -d -o "$user" -g "$shared_group" -m 2770 "$inbox_dir"
   install -d -o "$user" -g "$shared_group" -m 2770 "$config_dir"
@@ -240,38 +261,83 @@ ensure_sms_credentials_file() {
   chmod 0660 "$credentials_file"
 }
 
-generate_ssh_keypair() {
-  local user="$1"
-  local keyfile="$2"
-
-  if [ -f "$keyfile" ] && [ -f "${keyfile}.pub" ]; then
-    echo "SSH-Key existiert bereits: $keyfile"
-  else
-    ssh-keygen -t ed25519 -N '' -f "$keyfile" >/dev/null
-    echo "SSH-Key erzeugt: $keyfile"
+check_key_paths() {
+  local private="$1" public="$2" path
+  for path in "$private" "$public"; do
+    if [[ -L "$path" || ( -e "$path" && ! -f "$path" ) ]]; then
+      echo "Ungueltiger Schluesselpfad: $path" >&2
+      return 1
+    fi
+  done
+  if [[ -f "$public" && ! -f "$private" ]]; then
+    echo "Privater Schluessel fehlt zu $public. Bestehenden Schluessel aus Sicherung wiederherstellen." >&2
+    return 1
   fi
-
-  chown "$user:$user" "$keyfile" "${keyfile}.pub"
-  chmod 0600 "$keyfile"
-  chmod 0644 "${keyfile}.pub"
 }
 
-generate_decrypt_keypair() {
-  local user="$1"
-  local private_key="$2"
-  local public_key="$3"
-
-  if [ -f "$private_key" ] && [ -f "$public_key" ]; then
-    echo "Decrypt-Keypaar existiert bereits."
-  else
-    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$private_key" >/dev/null 2>&1
-    openssl pkey -in "$private_key" -pubout -out "$public_key" >/dev/null 2>&1
-    echo "Decrypt-Keypaar erzeugt."
+generate_ssh_keypair() (
+  local private="$1" public="$1.pub" tmp
+  tmp="$(mktemp -d "$(dirname "$private")/.fetch-key.XXXXXX")"
+  trap 'rm -rf -- "$tmp"' EXIT
+  if [[ ! -f "$private" ]]; then
+    ssh-keygen -t ed25519 -N '' -f "$tmp/key" >/dev/null
+    ln "$tmp/key" "$private"
   fi
+  ssh-keygen -y -P '' -f "$private" > "$tmp/derived"
+  if [[ -f "$public" ]]; then
+    # SSH-Kommentare gehoeren nicht zum Schluessel.
+    awk '{print $1, $2}' "$public" > "$tmp/existing"
+    awk '{print $1, $2}' "$tmp/derived" | cmp -s - "$tmp/existing" || {
+      echo "SSH-Public-Key passt nicht zum privaten Schluessel: $public" >&2; return 1;
+    }
+  else
+    ln "$tmp/derived" "$public"
+  fi
+  chmod 0600 "$private"
+  chmod 0644 "$public"
+)
 
-  chown "$user:$user" "$private_key" "$public_key"
-  chmod 0600 "$private_key"
-  chmod 0644 "$public_key"
+generate_decrypt_keypair() (
+  local private="$1" public="$2" tmp
+  tmp="$(mktemp -d "$(dirname "$private")/.decrypt-key.XXXXXX")"
+  trap 'rm -rf -- "$tmp"' EXIT
+  if [[ ! -f "$private" ]]; then
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$tmp/key" >/dev/null 2>&1
+    ln "$tmp/key" "$private"
+  fi
+  openssl rsa -passin pass: -in "$private" -pubout -out "$tmp/derived" 2>/dev/null
+  if [[ -f "$public" ]]; then
+    openssl pkey -pubin -in "$public" -pubout -out "$tmp/existing"
+    cmp -s "$tmp/derived" "$tmp/existing" || {
+      echo "RSA-Public-Key passt nicht zum privaten Schluessel: $public" >&2; return 1;
+    }
+  else
+    ln "$tmp/derived" "$public"
+  fi
+  chmod 0600 "$private"
+  chmod 0644 "$public"
+)
+
+prepare_keys() {
+  local user="$1" group="$2" base="$3" ssh_key="$4" private="$5" public="$6"
+  ensure_group "$group"
+  install -d -o root -g root -m 0755 "$BASE_ROOT"
+  ensure_user "$user" "$base"
+  [[ ! -L "$base" && ! -L "$base/.ssh" ]] || { echo "Symlink im Schluesselpfad: $base" >&2; return 1; }
+  install -d -o "$user" -g "$group" -m 0710 "$base"
+  install -d -o "$user" -g "$user" -m 0700 "$base/.ssh"
+
+  # Das Home gehoert dem Kanalbenutzer. Dort mit seinen Rechten arbeiten.
+  {
+    declare -f check_key_paths generate_ssh_keypair generate_decrypt_keypair
+    cat <<'KEYS'
+umask 077
+check_key_paths "$1" "$1.pub"
+check_key_paths "$2" "$3"
+generate_ssh_keypair "$1"
+generate_decrypt_keypair "$2" "$3"
+KEYS
+  } | runuser -u "$user" -- flock --exclusive "$base" bash -seu -o pipefail -- "$ssh_key" "$private" "$public"
 }
 
 patch_app_file() {
@@ -293,20 +359,19 @@ if '/srv/telepraxis/inbox' in text:
 else:
     pattern = r"const\s+TELEPRAXIS_INBOX_DIR\s*=\s*.*?;"
     replacement = f"const TELEPRAXIS_INBOX_DIR = {php_single_quoted(inbox_dir)};"
-    text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+    text, count = re.subn(pattern, lambda _: replacement, text, count=1, flags=re.S)
     if count != 1:
         raise SystemExit('Patch fehlgeschlagen: TELEPRAXIS_INBOX_DIR nicht gefunden')
 
 pattern = r"const\s+TELEPRAXIS_ADMIN_PASSWORD\s*=\s*.*?;"
 replacement = f"const TELEPRAXIS_ADMIN_PASSWORD = {php_single_quoted(admin_password)};"
-text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+text, count = re.subn(pattern, lambda _: replacement, text, count=1, flags=re.S)
 if count != 1:
     raise SystemExit('Patch fehlgeschlagen: TELEPRAXIS_ADMIN_PASSWORD nicht gefunden')
 
 path.write_text(text, encoding='utf-8')
 PY
 
-  php -l "$app_file" >/dev/null
 }
 
 patch_sms_files() {
@@ -325,7 +390,7 @@ def php_single_quoted(value):
 def patch_constant(text, name, value, label):
     pattern = rf"const\s+{name}\s*=\s*.*?;"
     replacement = f"const {name} = {php_single_quoted(value)};"
-    text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+    text, count = re.subn(pattern, lambda _: replacement, text, count=1, flags=re.S)
     if count != 1:
         raise SystemExit(f'Patch fehlgeschlagen: {label} nicht gefunden')
     return text
@@ -339,8 +404,6 @@ for filename in (sms_lib_file, sms_config_file):
     path.write_text(text, encoding='utf-8')
 PY
 
-  php -l "$sms_lib_file" >/dev/null
-  php -l "$sms_config_file" >/dev/null
 }
 
 patch_fetch_file() {
@@ -481,40 +544,31 @@ show_summary() {
   cat "$ssh_pub"
   echo "----------------------------------------------------------------"
   echo
-  echo "RSA-Public-Key fuer telepraxis-receive<ssh-benutzer>.php auf dem Quellsystem:"
+  echo "RSA-Public-Key fuer Fon und telepraxis-receive-<ssh-benutzer>.php auf dem Quellsystem:"
   echo "----------------------------------------------------------------"
   cat "$decrypt_pub"
   echo "----------------------------------------------------------------"
   echo
   echo "Hinweise:"
   echo "- Auf dem Quellsystem den obigen SSH-Public-Key in authorized_keys des dortigen SSH-Benutzers eintragen."
-  echo "- Auf dem Quellsystem den obigen RSA-Public-Key in die passende telepraxis-receive<ssh-benutzer>.php einsetzen."
+  echo "- Auf dem Quellsystem den obigen RSA-Public-Key in die passende telepraxis-receive-<ssh-benutzer>.php einsetzen."
   echo "- Die lokale Inbox ist fuer ${WEB_USER} und ${user} vorbereitet."
   echo "- Die SMS-Credentials liegen ausserhalb des Webroots unter: $sms_credentials"
   echo "- sms-config.php ist ueber den normalen Webserver erreichbar und mit dem obigen Adminpasswort geschuetzt."
 }
 
-main() {
-  require_root
-  install_php_extension_packages
-  need_cmd php
-  need_cmd python3
-  need_cmd ssh-keygen
-  need_cmd openssl
-  need_cmd systemctl
-  verify_php_extensions
-  if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
-    echo "Es wird curl oder wget benoetigt."
-    exit 1
-  fi
+usage() {
+  echo "Aufruf: bash zielserver-vorbereiten-v1.8.sh [--source-dir VERZEICHNIS] [--user ZIELBENUTZER] [--prepare-keys]"
+}
 
+main() {
+  local source_dir="" keys_only=0
   local target_user=""
   local shared_group=""
   local source_host=""
   local source_user=""
   local source_port=""
   local base_dir=""
-  local ssh_dir=""
   local pull_dir=""
   local inbox_dir=""
   local config_dir=""
@@ -525,7 +579,6 @@ main() {
   local fetch_script=""
   local app_target=""
   local sms_lib_target=""
-  local sms_queue_target=""
   local sms_config_target=""
   local service_name=""
   local service_file=""
@@ -533,64 +586,84 @@ main() {
   local app_admin_password=""
   local sms_config_password=""
 
-  target_user="$(ask_user)"
+  while (( $# )); do
+    case "$1" in
+      --source-dir)
+        [[ -n "${2:-}" && -d "$2" && ! -L "$2" ]] || { echo "Quellverzeichnis fehlt oder ist ungueltig." >&2; return 2; }
+        source_dir="$(CDPATH= cd -P -- "$2" && pwd -P)"
+        shift 2 ;;
+      --user)
+        [[ "${2:-}" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Ungueltiger Zielbenutzer." >&2; return 2; }
+        target_user="$2"; shift 2 ;;
+      --prepare-keys) keys_only=1; shift ;;
+      --help|-h) usage; return 0 ;;
+      *) usage >&2; return 2 ;;
+    esac
+  done
+  require_root
+  need_cmd ssh-keygen
+  need_cmd openssl
+  need_cmd runuser
+  need_cmd flock
+  if (( ! keys_only )); then
+    need_cmd python3
+    need_cmd systemctl
+    if [[ -z "$source_dir" ]] && ! command -v curl >/dev/null 2>&1; then need_cmd wget; fi
+    stage_programs "$source_dir"
+  fi
+
+  if [[ -z "$target_user" ]]; then target_user="$(ask_user)"; fi
   shared_group="tp-${target_user}"
+  base_dir="${BASE_ROOT}/${target_user}"
+  ssh_key="${base_dir}/.ssh/telepraxis_fetch_key"
+  decrypt_private="${base_dir}/telepraxis_decrypt_private.pem"
+  decrypt_public="${base_dir}/telepraxis_decrypt_public.pem"
+  if (( keys_only )); then
+    prepare_keys "$target_user" "$shared_group" "$base_dir" "$ssh_key" "$decrypt_private" "$decrypt_public"
+    printf 'RSA-Public-Key fuer Fon und Empfangs-PHP: %s\nSSH-Public-Key fuer den Abrufkanal: %s\n' "$decrypt_public" "${ssh_key}.pub"
+    return 0
+  fi
   source_host="$(ask_default 'Quellserver Hostname/FQDN' 'kontakt.praxispi.de')"
   source_user="$(ask_default 'SSH-Benutzer auf dem Quellsystem' "$target_user")"
   source_port="$(ask_default 'SSH-Port auf dem Quellsystem' '22')"
   ask_password_or_generate app_admin_password 'Supervisor/Adminpasswort fuer die kienzlefon app'
   ask_password_or_generate sms_config_password 'Adminpasswort fuer sms-config.php'
 
-  base_dir="${BASE_ROOT}/${target_user}"
-  ssh_dir="${base_dir}/.ssh"
   pull_dir="${base_dir}/.encrypted"
   inbox_dir="${base_dir}/inbox"
   config_dir="${base_dir}/config"
   sms_credentials="${config_dir}/sms-credentials.json"
-  ssh_key="${ssh_dir}/telepraxis_fetch_key"
-  decrypt_private="${base_dir}/telepraxis_decrypt_private.pem"
-  decrypt_public="${base_dir}/telepraxis_decrypt_public.pem"
-  fetch_script="/usr/local/bin/telepraxis_fetch_and_decrypt_${target_user}.sh"
+  fetch_script="${BIN_DIR}/telepraxis_fetch_and_decrypt_${target_user}.sh"
   app_target="${WEBROOT_DIR}/telepraxis-app.php"
   sms_lib_target="${WEBROOT_DIR}/telepraxis-sms.php"
-  sms_queue_target="${WEBROOT_DIR}/telepraxis-sms-queue.php"
   sms_config_target="${WEBROOT_DIR}/sms-config.php"
   service_name="telepraxis-fetch-and-decrypt-${target_user}.service"
-  service_file="/etc/systemd/system/${service_name}"
+  service_file="${UNIT_DIR}/${service_name}"
   remote_dir="/srv/telepraxis/${source_user}/inbox"
 
-  ensure_group "$shared_group"
-  ensure_user "$target_user" "$base_dir"
-  ensure_dirs "$target_user" "$shared_group" "$base_dir" "$ssh_dir" "$pull_dir" "$inbox_dir" "$config_dir"
+  local app_component
+  patch_app_file "$SOURCE_STAGE/telepraxis-app.php" "$inbox_dir" "$app_admin_password"
+  patch_sms_files "$SOURCE_STAGE/telepraxis-sms.php" "$SOURCE_STAGE/sms-config.php" "$sms_credentials" "$sms_config_password"
+  patch_fetch_file "$SOURCE_STAGE/$FETCH_FILE" "$source_host" "$source_user" "$source_port" "$remote_dir" "$pull_dir" "$inbox_dir" "$decrypt_private" "$ssh_key"
+  bash -n "$SOURCE_STAGE/$FETCH_FILE"
+
+  if command -v php >/dev/null 2>&1; then lint_web_files; fi
+  install_php_extension_packages
+  need_cmd php
+  verify_php_extensions
+  lint_web_files
+
+  prepare_keys "$target_user" "$shared_group" "$base_dir" "$ssh_key" "$decrypt_private" "$decrypt_public"
+  ensure_dirs "$target_user" "$shared_group" "$pull_dir" "$inbox_dir" "$config_dir"
   ensure_sms_credentials_file "$target_user" "$shared_group" "$sms_credentials"
-  generate_ssh_keypair "$target_user" "$ssh_key"
-  generate_decrypt_keypair "$target_user" "$decrypt_private" "$decrypt_public"
-
-  mkdir -p "$WEBROOT_DIR" /usr/local/bin
-
-  backup_if_exists "$app_target"
-  fetch_url_to_file "$APP_URL" "$app_target"
-  chmod 0644 "$app_target"
-  patch_app_file "$app_target" "$inbox_dir" "$app_admin_password"
-
-  backup_if_exists "$sms_lib_target"
-  fetch_url_to_file "$SMS_LIB_URL" "$sms_lib_target"
-  chmod 0644 "$sms_lib_target"
-
-  backup_if_exists "$sms_queue_target"
-  fetch_url_to_file "$SMS_QUEUE_URL" "$sms_queue_target"
-  chmod 0644 "$sms_queue_target"
-  php -l "$sms_queue_target" >/dev/null
-
-  backup_if_exists "$sms_config_target"
-  fetch_url_to_file "$SMS_CONFIG_URL" "$sms_config_target"
-  chmod 0644 "$sms_config_target"
-  patch_sms_files "$sms_lib_target" "$sms_config_target" "$sms_credentials" "$sms_config_password"
+  mkdir -p "$WEBROOT_DIR" "$BIN_DIR"
+  for app_component in "${WEB_FILES[@]}"; do
+    backup_if_exists "${WEBROOT_DIR}/${app_component}"
+    install -m 0644 "$SOURCE_STAGE/$app_component" "$WEBROOT_DIR/$app_component"
+  done
 
   backup_if_exists "$fetch_script"
-  fetch_url_to_file "$FETCH_URL" "$fetch_script"
-  patch_fetch_file "$fetch_script" "$source_host" "$source_user" "$source_port" "$remote_dir" "$pull_dir" "$inbox_dir" "$decrypt_private" "$ssh_key"
-  chown "$target_user:$target_user" "$fetch_script"
+  install -m 0755 -o "$target_user" -g "$target_user" "$SOURCE_STAGE/$FETCH_FILE" "$fetch_script"
 
   create_service_file "$service_file" "$target_user" "$fetch_script"
   chmod 0644 "$service_file"
@@ -603,4 +676,4 @@ main() {
   show_summary "$target_user" "$shared_group" "$source_host" "$source_user" "$source_port" "$base_dir" "$inbox_dir" "$config_dir" "$app_target" "$sms_lib_target" "$sms_config_target" "$sms_credentials" "$fetch_script" "$service_name" "${ssh_key}.pub" "$decrypt_public" "$app_admin_password" "$sms_config_password"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

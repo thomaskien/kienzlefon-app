@@ -1,0 +1,44 @@
+{
+  "received_at": "2026-11-18T10:00:00+01:00",
+  "remote_ip": "",
+  "user_agent": "kienzlefon-beispiel",
+  "typ": "mehrere_anliegen",
+  "payload": {
+    "typ": "mehrere_anliegen",
+    "id": "unbekannt",
+    "telefon": "unbekannt",
+    "vorname": "Test",
+    "nachname": "Beispiel",
+    "geburtsdatum": "",
+    "anliegen_schema_version": 1,
+    "zusammenfassung": "Zwei Rezepte und eine Überweisung.",
+    "anliegen_liste": [
+      {
+        "anliegen_id": "a-001",
+        "typ": "rezeptbestellung",
+        "medikamente": "Testmedikament A"
+      },
+      {
+        "anliegen_id": "a-002",
+        "typ": "rezeptbestellung",
+        "medikamente": "Testmedikament B"
+      },
+      {
+        "anliegen_id": "a-003",
+        "typ": "ueb_req",
+        "fachrichtung": "Testfachrichtung",
+        "grund": "Testanlass"
+      }
+    ],
+    "_kienzlefon": {
+      "version": "1.0",
+      "vorgang_id": "20261118_100000_000002",
+      "audio": [],
+      "audio_beilage": {
+        "schema_version": 1,
+        "status": "fehler",
+        "fehlercode": "audio_uebergabe_fehlgeschlagen"
+      }
+    }
+  }
+}

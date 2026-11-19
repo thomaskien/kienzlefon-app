@@ -1,9 +1,15 @@
 <?php
 /*
  * telepraxis-app.php
- * Version: 3.6
+ * Version: 3.7
  *
  * Fortgeführter Changelog (niemals entfernen, nur ergänzen):
+ * - 2026-11-19 (v3.7): Papierkorb schützt Vorgänge in Bearbeitung und nummeriert belegte Zieldateinamen beim Verschieben und Wiederherstellen.
+ * - 2026-11-19 (v3.7): Einzeilige Zählerleiste mit platzabhängiger Anzeige. Gesetzte Benutzer- und Platzfelder werden in der Kopfzeile ausgeblendet.
+ * - v3.7 (2026-11-18)
+ *   - Mehrfach-Anliegen v1 mit Teilabschlüssen und einem zuständigen Bearbeiter pro Vorgang.
+ *   - Audio-Beilagen aus der Inbox und verzögertes Laden des separaten Papierkorbs.
+ *   - Kompakte Telefonieübersicht und optionale Rufgruppensteuerung über Vertrag 1.0.2.
  * - Feature-Branch recording-miniplayer (unveröffentlicht; Version bleibt 3.6):
  *   - Ein einklappbarer HTML5-Player pro Kienzlefon-WAV-Segment, auch bei mehreren Medikamenten.
  *   - Optionale statische recordings/-Freigabe; Audioelemente bleiben bei Polling-Updates erhalten.
@@ -117,7 +123,7 @@ define('TELEPRAXIS_APP', true);
 require_once __DIR__ . '/telepraxis-sms.php';
 
 const TELEPRAXIS_APP_NAME = 'kienzlefon app';
-const TELEPRAXIS_APP_VERSION = '3.6';
+const TELEPRAXIS_APP_VERSION = '3.7';
 const TELEPRAXIS_INBOX_DIR = __DIR__ . DIRECTORY_SEPARATOR . 'inbox';
 const TELEPRAXIS_POLL_INTERVAL_MS = 5000;
 const TELEPRAXIS_DEFAULT_TIMEZONE = 'Europe/Berlin';
@@ -134,6 +140,7 @@ const TELEPRAXIS_T2MED_BASE_URL = '';
 // Optional: URL-Pfad zum Webserver-Symlink auf den Kienzlefon-Ready-Spool.
 // Beispiel: 'recordings' (relativ zur telepraxis-app.php). Leer = Player aus.
 const TELEPRAXIS_RECORDINGS_BASE_URL = '';
+const TELEPRAXIS_AUDIO_RETENTION_DAYS = 0;
 
 function tp_now_iso(): string
 {
@@ -322,6 +329,9 @@ function tp_ensure_entry_app(array $entry): array
     $entry['app']['dringend'] = (bool)$entry['app']['dringend'];
     $entry['app']['deleted'] = (bool)$entry['app']['deleted'];
     $entry['app']['comments'] = tp_normalize_comments($entry['app']['comments'] ?? []);
+    $entry['app']['bearbeiter'] = $entry['app']['status'] === 'in_bearbeitung'
+        ? tp_sanitize_user((string)($entry['app']['bearbeiter'] ?? $entry['app']['status_updated_benutzer']))
+        : '';
     return $entry;
 }
 
@@ -378,11 +388,76 @@ function tp_entry_typ(array $entry): string
 function tp_payload_value(array $payload, array $keys): string
 {
     foreach ($keys as $key) {
-        if (isset($payload[$key]) && trim((string)$payload[$key]) !== '') {
+        if (isset($payload[$key]) && is_scalar($payload[$key]) && trim((string)$payload[$key]) !== '') {
             return trim((string)$payload[$key]);
         }
     }
     return '';
+}
+
+function tp_anliegen_id($value): bool
+{
+    return is_string($value) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $value) === 1;
+}
+
+/** Returns null for a legacy case and a structure with editable IDs for v1 cases. */
+function tp_anliegen(array $entry): ?array
+{
+    $payload = tp_payload($entry);
+    if (($entry['typ'] ?? null) !== 'mehrere_anliegen' && ($payload['typ'] ?? null) !== 'mehrere_anliegen') {
+        return null;
+    }
+    $items = $payload['anliegen_liste'] ?? null;
+    $valid = ($entry['typ'] ?? null) === 'mehrere_anliegen'
+        && ($payload['typ'] ?? null) === 'mehrere_anliegen'
+        && ($payload['anliegen_schema_version'] ?? null) === 1
+        && tp_anliegen_id($payload['_kienzlefon']['vorgang_id'] ?? null)
+        && is_array($items) && array_is_list($items) && count($items) >= 2;
+    $parts = [];
+    $ids = [];
+    foreach (is_array($items) ? $items : [] as $item) {
+        if (!is_array($item)) {
+            $valid = false;
+            if (is_string($item) && trim($item) !== '') {
+                $parts[] = ['id' => '', 'label' => 'Anliegen', 'body' => $item, 'done' => false, 'completed_by' => '', 'completed_at' => ''];
+            }
+            continue;
+        }
+        $id = $item['anliegen_id'] ?? null;
+        $type = $item['typ'] ?? null;
+        $idValid = tp_anliegen_id($id);
+        if (!$idValid || isset($ids[$id]) || !is_string($type) || trim($type) === '') {
+            $valid = false;
+        }
+        if ($idValid) $ids[$id] = true;
+        $type = is_string($type) ? trim($type) : '';
+        $category = tp_entry_category_key(['typ' => $type]);
+        $label = $category === 'rueckruf' && !preg_match('/^(rueckruf|fallback)_/', $type)
+            ? ($type ?: 'Anliegen') : tp_category_label($category);
+        $texts = [];
+        foreach ($item as $key => $value) {
+            if ($key === 'anliegen_id' || $key === 'typ' || !is_scalar($value) || trim((string)$value) === '') continue;
+            $texts[] = (string)$value;
+        }
+        $done = $idValid ? ($entry['app']['anliegen_status'][$id] ?? null) : null;
+        $parts[] = [
+            'id' => $idValid ? $id : '', 'label' => $label,
+            'body' => implode("\n", $texts),
+            'done' => is_array($done),
+            'completed_by' => (string)($done['benutzer'] ?? ''),
+            'completed_at' => tp_format_datetime((string)($done['completed_at'] ?? '')),
+        ];
+    }
+    return ['valid' => $valid, 'parts' => $parts,
+        'complete' => $valid && count(array_filter($parts, static fn($part) => $part['done'])) === count($parts)];
+}
+
+function tp_require_bearbeiter(array $entry, string $user): void
+{
+    if ($entry['app']['status'] === 'in_bearbeitung' && $entry['app']['bearbeiter'] !== ''
+        && $entry['app']['bearbeiter'] !== $user) {
+        throw new DomainException('Der Vorgang ist bei einem anderen Bearbeiter. Bitte Ansicht aktualisieren.');
+    }
 }
 
 function tp_entry_callback_phone_raw(array $entry): string
@@ -588,17 +663,145 @@ function tp_sms_queue_comments(string $fileName): array
     }
 }
 
-/**
- * Originalaufnahmen der Whisper-Felder aus der bestehenden Kienzlefon-Metadatenliste.
- * Keine Dateien suchen oder kopieren: der Webserver liefert WAVs über einen
- * separat eingerichteten statischen recordings/-Symlink aus.
- */
+function tp_audio_directory(array $entry, string $fileName): ?string
+{
+    $id = tp_payload($entry)['_kienzlefon']['vorgang_id'] ?? null;
+    if (!tp_anliegen_id($id) || $fileName !== $id . '.json') return null;
+    $root = TELEPRAXIS_INBOX_DIR . DIRECTORY_SEPARATOR . $id;
+    $audio = $root . DIRECTORY_SEPARATOR . 'audio';
+    if (is_link($root) || is_link($audio)) {
+        throw new RuntimeException('Das Begleitverzeichnis der Aufnahmen ist ungültig.');
+    }
+    return $audio;
+}
+
+function tp_audio_due(string $directory): bool
+{
+    $created = @filemtime($directory);
+    return TELEPRAXIS_AUDIO_RETENTION_DAYS > 0 && $created !== false
+        && $created + TELEPRAXIS_AUDIO_RETENTION_DAYS * 86400 <= time();
+}
+
+/** The caller holds the shared inbox lock. */
+function tp_remove_audio(array $entry, string $fileName): array
+{
+    $directory = tp_audio_directory($entry, $fileName);
+    if ($directory === null) return $entry;
+    if (is_dir($directory)) {
+        $files = @scandir($directory);
+        if ($files === false) throw new RuntimeException('Aufnahmen konnten nicht gelöscht werden. Bitte erneut versuchen.');
+        foreach ($files as $name) {
+            if (!preg_match('/\.wav$/iD', $name)) continue;
+            $path = $directory . DIRECTORY_SEPARATOR . $name;
+            if (!is_file($path) || is_link($path) || !@unlink($path)) {
+                throw new RuntimeException('Aufnahmen konnten nicht vollständig gelöscht werden. Bitte erneut versuchen.');
+            }
+        }
+        tp_sync_entry_directory($directory);
+        if (@rmdir($directory)) @rmdir(dirname($directory));
+    }
+    $entry['app']['audio_deleted_at'] ??= tp_now_iso();
+    return $entry;
+}
+
+function tp_audio_path(array $entry, string $fileName, string $name): ?string
+{
+    if (!empty($entry['app']['deleted']) || !empty($entry['app']['audio_deleted_at'])
+        || tp_audio_failed($entry) || !preg_match('/^[A-Za-z0-9_-]+\.wav$/D', $name)) return null;
+    $directory = tp_audio_directory($entry, $fileName);
+    if ($directory === null || !is_dir($directory) || tp_audio_due($directory)) return null;
+    $path = $directory . DIRECTORY_SEPARATOR . $name;
+    return is_file($path) && !is_link($path) ? $path : null;
+}
+
+function tp_audio_failed(array $entry): bool
+{
+    $audio = tp_payload($entry)['_kienzlefon']['audio_beilage'] ?? null;
+    return ($audio['schema_version'] ?? null) === 1 && ($audio['status'] ?? null) === 'fehler'
+        && ($audio['fehlercode'] ?? null) === 'audio_uebergabe_fehlgeschlagen';
+}
+
+function tp_stream_audio(): void
+{
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if ($method !== 'GET' && $method !== 'HEAD') {
+        header('Allow: GET, HEAD');
+        http_response_code(405);
+        exit;
+    }
+    $file = $_GET['file'] ?? null;
+    $segment = $_GET['segment'] ?? null;
+    $handle = false;
+    try {
+        if (is_string($file) && is_string($segment) && basename($file) === $file) {
+            $path = tp_inbox_file_path($file);
+            $entry = is_link($path) ? null : tp_read_json_file($path);
+            if ($entry !== null) {
+                foreach (tp_recording_segments($entry, $file) as $clip) {
+                    if ($clip['file'] === 'audio/' . $segment) {
+                        $audio = tp_audio_path($entry, $file, $segment);
+                        if ($audio !== null) $handle = @fopen($audio, 'rb');
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (RuntimeException $error) {
+        // Filesystem details stay on the server.
+    }
+    session_write_close();
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
+    if (!is_resource($handle)) {
+        http_response_code(404);
+        exit;
+    }
+    $size = fstat($handle)['size'] ?? 0;
+    if ($size <= 0) {
+        fclose($handle);
+        http_response_code(404);
+        exit;
+    }
+    $start = 0;
+    $end = $size - 1;
+    header('Content-Type: audio/wav');
+    header('Accept-Ranges: bytes');
+    $range = $_SERVER['HTTP_RANGE'] ?? '';
+    if ($range !== '') {
+        $valid = preg_match('/^bytes=(\d{0,18})-(\d{0,18})$/D', $range, $match)
+            && ($match[1] !== '' || $match[2] !== '');
+        if ($valid && $match[1] === '') {
+            $start = max(0, $size - (int)$match[2]);
+        } elseif ($valid) {
+            $start = (int)$match[1];
+            if ($match[2] !== '') $end = min($end, (int)$match[2]);
+        }
+        if (!$valid || $end < $start || fseek($handle, $start) !== 0) {
+            header('Content-Range: bytes */' . $size);
+            http_response_code(416);
+            fclose($handle);
+            exit;
+        }
+        http_response_code(206);
+        header("Content-Range: bytes $start-$end/$size");
+    }
+    $remaining = $end - $start + 1;
+    header('Content-Length: ' . $remaining);
+    while ($method === 'GET' && $remaining > 0 && !feof($handle) && !connection_aborted()) {
+        $chunk = fread($handle, min(65536, $remaining));
+        if ($chunk === false || $chunk === '') break;
+        echo $chunk;
+        $remaining -= strlen($chunk);
+    }
+    fclose($handle);
+    exit;
+}
+
 function tp_recording_segments(array $entry, string $fileName): array
 {
+    if (!empty($entry['app']['deleted']) || !empty($entry['app']['audio_deleted_at']) || tp_audio_failed($entry)) return [];
     $base = trim(TELEPRAXIS_RECORDINGS_BASE_URL);
-    if ($base === '' || !preg_match('~^/?[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*$~D', $base)) {
-        return [];
-    }
+    $legacyEnabled = $base !== '' && preg_match('~^/?[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*$~D', $base);
 
     $payload = tp_payload($entry);
     $meta = $payload['_kienzlefon'] ?? null;
@@ -607,9 +810,22 @@ function tp_recording_segments(array $entry, string $fileName): array
     }
 
     $callId = pathinfo($fileName, PATHINFO_FILENAME);
-    if (!preg_match('/^[0-9]{8}_[0-9]{6}_[0-9]{6}$/D', $callId)
-        || ($meta['vorgang_id'] ?? null) !== $callId) {
+    if (!tp_anliegen_id($callId) || ($meta['vorgang_id'] ?? null) !== $callId) {
         return [];
+    }
+    try {
+        $localDirectory = tp_audio_directory($entry, $fileName);
+    } catch (RuntimeException $error) {
+        return [];
+    }
+    $hasLocal = $localDirectory !== null && is_dir($localDirectory);
+    if ($hasLocal && tp_audio_due($localDirectory)) return [];
+    $parts = [];
+    $anliegen = tp_anliegen($entry);
+    if ($anliegen !== null && $anliegen['valid']) {
+        foreach ($anliegen['parts'] as $i => $item) {
+            $parts[$item['id']] = ($i + 1) . '. ' . $item['label'];
+        }
     }
 
     $labels = [
@@ -641,11 +857,22 @@ function tp_recording_segments(array $entry, string $fileName): array
         } else {
             $label = $labels[$field] ?? 'Aufnahme ' . (count($segments) + 1);
         }
+        if (isset($audio['anliegen_id'])) {
+            if (!is_string($audio['anliegen_id']) || !isset($parts[$audio['anliegen_id']])) continue;
+            $label = $parts[$audio['anliegen_id']] . ' · ' . $label;
+        }
+        if ($hasLocal) {
+            if (tp_audio_path($entry, $fileName, $match[1]) === null) continue;
+            $url = '?ajax=audio&file=' . rawurlencode($fileName) . '&segment=' . rawurlencode($match[1]);
+        } elseif ($legacyEnabled && preg_match('/^[0-9]{8}_[0-9]{6}_[0-9]{6}$/D', $callId)) {
+            $url = rtrim($base, '/') . '/' . rawurlencode($callId) . '/audio/' . rawurlencode($match[1]);
+        } else {
+            continue;
+        }
         $segments[] = [
             'file' => $relative,
             'label' => $label,
-            'url' => rtrim($base, '/') . '/' . rawurlencode($callId)
-                . '/audio/' . rawurlencode($match[1]),
+            'url' => $url,
         ];
     }
 
@@ -668,6 +895,11 @@ function tp_build_entry_view(array $entry, string $fileName): array
     }
 
     $body = tp_build_main_text($entry);
+    $anliegen = tp_anliegen($entry);
+    if ($anliegen !== null && $anliegen['parts'] !== []) {
+        $partsText = implode("\n\n", array_map(static fn($part) => $part['label'] . ': ' . $part['body'], $anliegen['parts']));
+        $body = $anliegen['valid'] || $body === '—' ? $partsText : $body . "\n\n" . $partsText;
+    }
     $comments = [];
     foreach (($entry['app']['comments'] ?? []) as $comment) {
         if (!is_array($comment)) {
@@ -697,7 +929,7 @@ function tp_build_entry_view(array $entry, string $fileName): array
         'received_at_display' => tp_format_datetime((string)($entry['received_at'] ?? '')),
         'type' => tp_entry_typ($entry),
         'category_key' => $categoryKey,
-        'category_label' => tp_category_label($categoryKey),
+        'category_label' => $anliegen === null ? tp_category_label($categoryKey) : 'Mehrere Anliegen',
         'category_order' => tp_category_order($categoryKey),
         'status' => (string)$entry['app']['status'],
         'urgent' => (bool)$entry['app']['dringend'],
@@ -707,6 +939,7 @@ function tp_build_entry_view(array $entry, string $fileName): array
         'person_display' => $person['display'],
         'person_copy' => $person['copy'],
         'body' => $body,
+        'anliegen' => $anliegen,
         'summary' => $summary,
         'telephone_display' => tp_normalize_phone($displayPhoneRaw),
         'telephone_href' => tp_valid_tel_href($displayPhoneRaw),
@@ -720,16 +953,118 @@ function tp_build_entry_view(array $entry, string $fileName): array
         'last_updated_at' => (string)($entry['app']['status_updated_at'] ?? ''),
         'last_updated_display' => tp_format_datetime((string)($entry['app']['status_updated_at'] ?? '')),
         'last_workplace' => (string)($entry['app']['status_updated_arbeitsplatz'] ?? ''),
-        'last_user' => tp_sanitize_user((string)($entry['app']['status_updated_benutzer'] ?? '')),
+        'last_user' => $entry['app']['bearbeiter'] ?: tp_sanitize_user((string)($entry['app']['status_updated_benutzer'] ?? '')),
         'deleted_at_display' => tp_format_datetime((string)($entry['app']['deleted_at'] ?? '')),
         'deleted_workplace' => (string)($entry['app']['deleted_arbeitsplatz'] ?? ''),
         'deleted_user' => tp_sanitize_user((string)($entry['app']['deleted_benutzer'] ?? '')),
         'comments' => $comments,
         'recordings' => tp_recording_segments($entry, $fileName),
+        'audio_failed' => tp_audio_failed($entry),
     ];
 }
 
-function tp_list_entries(bool $includeDeleted = true): array
+function tp_trash_directory(bool $create = false): string
+{
+    $path = TELEPRAXIS_INBOX_DIR . DIRECTORY_SEPARATOR . 'papierkorb';
+    clearstatcache(true, $path);
+    if ($create && !is_dir($path) && !is_link($path)) {
+        $oldUmask = umask(0007);
+        try {
+            @mkdir($path, 0770);
+        } finally {
+            umask($oldUmask);
+        }
+    }
+    if (is_link($path) || (file_exists($path) && !is_dir($path)) || ($create && !is_dir($path))) {
+        throw new RuntimeException('Papierkorb-Verzeichnis nicht verfügbar.');
+    }
+    return $path;
+}
+
+/** SMS jobs and interrupted SMS exports refer to their case by its filename. */
+function tp_filename_has_sms_jobs(string $name, array $settings): bool
+{
+    if (trim((string)($settings['queue']['database_path'] ?? '')) === '') return false;
+    require_once __DIR__ . '/telepraxis-sms-queue.php';
+    return tp_sms_queue_for_source($settings, $name) !== [];
+}
+
+function tp_reserve_move_destination(string $source, string $destination, array $entry): string
+{
+    $from = @stat(dirname($source));
+    $directory = dirname($destination);
+    $to = @stat($directory);
+    if ($from === false || $to === false || $from['dev'] !== $to['dev']) {
+        throw new RuntimeException('Inbox und Papierkorb müssen auf demselben Dateisystem liegen.');
+    }
+    $stem = pathinfo($destination, PATHINFO_FILENAME);
+    $candidate = $destination;
+    $settings = null;
+    for ($number = 1; ; $number++) {
+        if ($number > 1) {
+            $suffix = '-' . $number . '.json';
+            $name = substr($stem, 0, 255 - strlen($suffix)) . $suffix;
+            $sibling = dirname($source) . DIRECTORY_SEPARATOR . $name;
+            if (file_exists($sibling) || is_link($sibling) || tp_filename_has_sms_jobs($name, $settings)) continue;
+            $candidate = $directory . DIRECTORY_SEPARATOR . $name;
+        }
+        $reservation = @fopen($candidate, 'xb');
+        if ($reservation !== false) {
+            fclose($reservation);
+            return $candidate;
+        }
+        clearstatcache(true, $candidate);
+        if (!file_exists($candidate) && !is_link($candidate)) {
+            throw new RuntimeException('Zieldatei konnte nicht angelegt werden.');
+        }
+        if ($number === 1) {
+            $settings = tp_sms_load_settings();
+            if (isset($entry['sms']['received_key'])
+                || in_array('sms_received', array_column($entry['app']['comments'] ?? [], 'kind'), true)
+                || tp_filename_has_sms_jobs(basename($source), $settings)) {
+                throw new DomainException('Gleicher Dateiname mit verknüpftem SMS-Verlauf. Bitte die Zuordnung prüfen.');
+            }
+        }
+    }
+}
+
+/** Move records marked as deleted by older versions. Keep failed moves readable for admins. */
+function tp_migrate_deleted_entries(array $paths): array
+{
+    $remaining = [];
+    $lock = tp_inbox_lock();
+    try {
+        foreach ($paths as $path) {
+            clearstatcache(true, $path);
+            $entry = is_link($path) ? null : tp_read_json_file($path);
+            if ($entry === null || empty($entry['app']['deleted'])) {
+                continue;
+            }
+            $reserved = null;
+            try {
+                $normalized = tp_ensure_entry_app($entry);
+                $destination = tp_trash_directory(true) . DIRECTORY_SEPARATOR . basename($path);
+                $reserved = tp_reserve_move_destination($path, $destination, $normalized);
+                $updated = tp_remove_audio($normalized, basename($path));
+                if ($updated['app']['audio_deleted_at'] ?? null) tp_write_entry_atomic($path, $updated);
+                if (!@rename($path, $reserved)) {
+                    throw new RuntimeException('Altvorgang konnte nicht in den Papierkorb verschoben werden.');
+                }
+                $reserved = null;
+            } catch (RuntimeException | DomainException $e) {
+                $remaining[$path] = $entry;
+            } finally {
+                if ($reserved !== null) @unlink($reserved);
+            }
+        }
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+    return $remaining;
+}
+
+function tp_list_entries(bool $includeDeleted = false, ?string &$trashWarning = null): array
 {
     if (!is_dir(TELEPRAXIS_INBOX_DIR)) {
         return [];
@@ -739,16 +1074,52 @@ function tp_list_entries(bool $includeDeleted = true): array
     rsort($paths, SORT_STRING);
 
     $entries = [];
+    $legacyDeleted = [];
     foreach ($paths as $path) {
-        $data = tp_read_json_file($path);
+        $data = is_link($path) ? null : tp_read_json_file($path);
         if (!is_array($data)) {
             continue;
         }
-        $view = tp_build_entry_view($data, basename($path));
-        if (!$includeDeleted && $view['deleted']) {
+        if (!empty($data['app']['deleted'])) {
+            $legacyDeleted[] = $path;
             continue;
         }
-        $entries[] = $view;
+        if (TELEPRAXIS_AUDIO_RETENTION_DAYS > 0 && empty($data['app']['audio_deleted_at'])) {
+            try {
+                $directory = tp_audio_directory($data, basename($path));
+                if ($directory !== null && tp_audio_due($directory)) {
+                    $data = tp_update_file(basename($path), static function (array $entry) use ($path): array {
+                        return tp_remove_audio($entry, basename($path));
+                    });
+                }
+            } catch (RuntimeException $error) {
+                error_log('kienzlefon app: Audiofrist konnte nicht ausgeführt werden.');
+            }
+        }
+        $entries[] = tp_build_entry_view($data, basename($path));
+    }
+    $remaining = $legacyDeleted === [] ? [] : tp_migrate_deleted_entries($legacyDeleted);
+    if ($includeDeleted) {
+        $trash = tp_trash_directory();
+        if (is_dir($trash) && !is_readable($trash)) {
+            throw new RuntimeException('Papierkorb-Verzeichnis nicht lesbar.');
+        }
+        foreach (glob($trash . DIRECTORY_SEPARATOR . '*.json') ?: [] as $path) {
+            $data = is_link($path) ? null : tp_read_json_file($path);
+            if ($data !== null) {
+                $data = tp_ensure_entry_app($data);
+                $data['app']['deleted'] = true;
+                $entries[] = tp_build_entry_view($data, basename($path));
+            }
+        }
+        foreach ($remaining as $path => $data) {
+            $archived = $trash . DIRECTORY_SEPARATOR . basename($path);
+            if (!file_exists($archived) && !is_link($archived)) {
+                $entries[] = tp_build_entry_view($data, basename($path));
+            } else {
+                $trashWarning = 'Ein älterer gelöschter Vorgang liegt noch in der Inbox. Bitte gleichnamige Dateien in Inbox und Papierkorb prüfen.';
+            }
+        }
     }
     return $entries;
 }
@@ -821,7 +1192,8 @@ function tp_write_entry_atomic(string $path, array $entry): void
         throw new RuntimeException('JSON konnte nicht gespeichert werden.');
     }
     $json .= "\n";
-    $tempPath = TELEPRAXIS_INBOX_DIR . DIRECTORY_SEPARATOR . '.app-' . bin2hex(random_bytes(16)) . '.tmp';
+    $directoryPath = dirname($path);
+    $tempPath = $directoryPath . DIRECTORY_SEPARATOR . '.app-' . bin2hex(random_bytes(16)) . '.tmp';
     $handle = false;
     try {
         $oldUmask = umask(0007);
@@ -851,19 +1223,7 @@ function tp_write_entry_atomic(string $path, array $entry): void
         if (!@rename($tempPath, $path)) {
             throw new RuntimeException('Vorgang konnte nicht gespeichert werden.');
         }
-        if (function_exists('fsync')) {
-            $directory = @fopen(TELEPRAXIS_INBOX_DIR, 'rb');
-            if (!is_resource($directory)) {
-                throw new RuntimeException('Speicherung konnte nicht bestätigt werden. Bitte Ansicht aktualisieren.');
-            }
-            try {
-                if (!@fsync($directory)) {
-                    throw new RuntimeException('Speicherung konnte nicht bestätigt werden. Bitte Ansicht aktualisieren.');
-                }
-            } finally {
-                fclose($directory);
-            }
-        }
+        tp_sync_entry_directory($directoryPath);
     } finally {
         if (is_resource($handle)) {
             fclose($handle);
@@ -874,11 +1234,39 @@ function tp_write_entry_atomic(string $path, array $entry): void
     }
 }
 
-function tp_update_file(string $fileName, callable $mutator): array
+function tp_sync_entry_directory(string $path): void
 {
-    $path = tp_inbox_file_path($fileName);
-    $lock = tp_inbox_lock();
+    if (!function_exists('fsync')) {
+        return;
+    }
+    $directory = @fopen($path, 'rb');
+    if (!is_resource($directory)) {
+        throw new RuntimeException('Speicherung konnte nicht bestätigt werden. Bitte Ansicht aktualisieren.');
+    }
     try {
+        if (!@fsync($directory)) {
+            throw new RuntimeException('Speicherung konnte nicht bestätigt werden. Bitte Ansicht aktualisieren.');
+        }
+    } finally {
+        fclose($directory);
+    }
+}
+
+function tp_update_file(string $fileName, callable $mutator, ?bool $moveToTrash = null, ?string &$resultFile = null): array
+{
+    $active = tp_inbox_file_path($fileName);
+    $lock = tp_inbox_lock();
+    $reserved = null;
+    try {
+        $path = $active;
+        $destination = null;
+        if ($moveToTrash === false) {
+            $trash = tp_trash_directory() . DIRECTORY_SEPARATOR . basename($active);
+            if (file_exists($trash) || is_link($trash)) {
+                $path = $trash;
+                $destination = $active;
+            }
+        }
         clearstatcache(true, $path);
         if (is_link($path) || !is_file($path)) {
             throw new RuntimeException('Datei nicht gefunden.');
@@ -887,13 +1275,44 @@ function tp_update_file(string $fileName, callable $mutator): array
         if (!is_array($decoded)) {
             throw new RuntimeException('JSON konnte nicht gelesen werden.');
         }
-        $updated = $mutator(tp_ensure_entry_app($decoded));
+        $decoded = tp_ensure_entry_app($decoded);
+        if ($moveToTrash === null && $decoded['app']['deleted']) {
+            throw new RuntimeException('Vorgang befindet sich im Papierkorb.');
+        }
+        if ($moveToTrash === true && $decoded['app']['status'] === 'in_bearbeitung') {
+            throw new DomainException('Vorgänge in Bearbeitung können nicht gelöscht werden.');
+        }
+        if ($moveToTrash === true) {
+            $destination = tp_trash_directory(true) . DIRECTORY_SEPARATOR . basename($active);
+        }
+        if ($moveToTrash === false && $destination === null && !$decoded['app']['deleted']) {
+            throw new DomainException('Vorgang befindet sich bereits in der Inbox.');
+        }
+        if ($destination !== null) {
+            $reserved = tp_reserve_move_destination($path, $destination, $decoded);
+        }
+        $updated = $mutator($decoded);
         if (!is_array($updated)) {
             throw new RuntimeException('Interner Fehler beim Aktualisieren.');
         }
         tp_write_entry_atomic($path, $updated);
+        $resultFile = basename($path);
+        if ($reserved !== null) {
+            if (!@rename($path, $reserved)) {
+                if ($updated['app']['audio_deleted_at'] ?? null) {
+                    $decoded['app']['audio_deleted_at'] = $updated['app']['audio_deleted_at'];
+                }
+                tp_write_entry_atomic($path, $decoded);
+                throw new RuntimeException('Vorgang konnte nicht verschoben werden.');
+            }
+            $resultFile = basename($reserved);
+            $reserved = null;
+            tp_sync_entry_directory(dirname($destination));
+            tp_sync_entry_directory(dirname($path));
+        }
         return $updated;
     } finally {
+        if ($reserved !== null) @unlink($reserved);
         flock($lock, LOCK_UN);
         fclose($lock);
     }
@@ -912,6 +1331,7 @@ function tp_apply_status(array $entry, string $status, string $workplace, string
 {
     $entry = tp_ensure_entry_app($entry);
     $entry['app']['status'] = $status;
+    $entry['app']['bearbeiter'] = $status === 'in_bearbeitung' ? $user : '';
     $entry['app']['status_updated_at'] = tp_now_iso();
     $entry['app']['status_updated_arbeitsplatz'] = $workplace;
     $entry['app']['status_updated_benutzer'] = $user;
@@ -949,14 +1369,26 @@ function tp_handle_api(): void
 {
     $action = (string)($_REQUEST['ajax'] ?? $_POST['action'] ?? '');
 
+    if ($action === 'audio') {
+        tp_stream_audio();
+    }
+
     if ($action === 'list') {
-        $entries = tp_list_entries(true);
+        $isAdmin = tp_is_admin();
+        $csrf = tp_get_csrf_token();
+        session_write_close();
+        try {
+            $entries = tp_list_entries($isAdmin && ($_GET['trash'] ?? '') === '1', $trashWarning);
+        } catch (RuntimeException $e) {
+            tp_json_response(['ok' => false, 'error' => $e->getMessage()], 500);
+        }
         tp_json_response([
             'ok' => true,
             'entries' => $entries,
             'stats' => tp_collect_stats($entries),
-            'is_admin' => tp_is_admin(),
-            'csrf' => tp_get_csrf_token(),
+            'trash_warning' => $trashWarning,
+            'is_admin' => $isAdmin,
+            'csrf' => $csrf,
         ]);
     }
 
@@ -985,7 +1417,7 @@ function tp_handle_api(): void
     // Alte Clients können weiterhin workplace als Bearbeiter senden. Ein explizit
     // leeres Benutzerfeld der neuen App darf jedoch niemals den Platz übernehmen.
     $user = tp_sanitize_user((string)($_POST['benutzer'] ?? $workplace));
-    if ($user === '' && in_array($action, ['set_status', 'toggle_urgent', 'soft_delete', 'add_comment', 'send_sms', 'restore', 'purge'], true)) {
+    if ($user === '' && in_array($action, ['set_status', 'set_anliegen', 'toggle_urgent', 'soft_delete', 'add_comment', 'send_sms', 'restore', 'purge'], true)) {
         tp_json_response(['ok' => false, 'error' => 'Bitte zuerst einen Benutzer eintragen.'], 400);
     }
 
@@ -996,7 +1428,37 @@ function tp_handle_api(): void
                 tp_json_response(['ok' => false, 'error' => 'Ungültiger Status.'], 400);
             }
             $updated = tp_update_file($file, function (array $entry) use ($status, $workplace, $user): array {
+                if ($status !== 'in_bearbeitung') tp_require_bearbeiter($entry, $user);
+                $anliegen = tp_anliegen($entry);
+                if ($status === 'abgeschlossen' && $anliegen !== null
+                    && ($entry['app']['status'] !== 'in_bearbeitung' || !$anliegen['complete'])) {
+                    throw new DomainException('Bitte zuerst alle Teilanliegen erledigen.');
+                }
                 return tp_apply_status($entry, $status, $workplace, $user);
+            });
+            tp_action_response($updated, $file);
+        }
+
+        if ($action === 'set_anliegen') {
+            $id = $_POST['anliegen_id'] ?? null;
+            $done = $_POST['done'] ?? null;
+            if (!tp_anliegen_id($id) || !in_array($done, ['0', '1'], true)) {
+                tp_json_response(['ok' => false, 'error' => 'Ungültiges Teilanliegen.'], 400);
+            }
+            $updated = tp_update_file($file, function (array $entry) use ($id, $done, $user): array {
+                tp_require_bearbeiter($entry, $user);
+                $anliegen = tp_anliegen($entry);
+                if ($entry['app']['status'] !== 'in_bearbeitung' || !$anliegen || !$anliegen['valid']
+                    || !in_array($id, array_column($anliegen['parts'], 'id'), true)) {
+                    throw new DomainException('Dieses Teilanliegen kann derzeit nicht geändert werden.');
+                }
+                if (!is_array($entry['app']['anliegen_status'] ?? null)) $entry['app']['anliegen_status'] = [];
+                if ($done === '1') {
+                    $entry['app']['anliegen_status'][$id] ??= ['benutzer' => $user, 'completed_at' => tp_now_iso()];
+                } else {
+                    unset($entry['app']['anliegen_status'][$id]);
+                }
+                return $entry;
             });
             tp_action_response($updated, $file);
         }
@@ -1015,8 +1477,9 @@ function tp_handle_api(): void
         }
 
         if ($action === 'soft_delete') {
-            $updated = tp_update_file($file, function (array $entry) use ($workplace, $user): array {
+            $updated = tp_update_file($file, function (array $entry) use ($file, $workplace, $user): array {
                 $entry = tp_ensure_entry_app($entry);
+                $entry = tp_remove_audio($entry, basename($file));
                 $entry['app']['deleted'] = true;
                 $entry['app']['deleted_at'] = tp_now_iso();
                 $entry['app']['deleted_arbeitsplatz'] = $workplace;
@@ -1026,8 +1489,8 @@ function tp_handle_api(): void
                 $entry['app']['status_updated_benutzer'] = $user;
                 $entry['app']['last_action'] = 'soft_delete';
                 return $entry;
-            });
-            tp_action_response($updated, $file);
+            }, true, $resultFile);
+            tp_action_response($updated, $resultFile);
         }
 
         if ($action === 'add_comment') {
@@ -1036,6 +1499,7 @@ function tp_handle_api(): void
                 tp_json_response(['ok' => false, 'error' => 'Kommentar fehlt.'], 400);
             }
             $updated = tp_update_file($file, function (array $entry) use ($workplace, $commentText, $user): array {
+                tp_require_bearbeiter($entry, $user);
                 return tp_append_comment($entry, $commentText, $workplace, 'add_comment', $user);
             });
             tp_action_response($updated, $file);
@@ -1127,25 +1591,29 @@ function tp_handle_api(): void
                 $entry['app']['status_updated_at'] = tp_now_iso();
                 $entry['app']['status_updated_arbeitsplatz'] = $workplace;
                 $entry['app']['status_updated_benutzer'] = $user;
+                $entry['app']['bearbeiter'] = $entry['app']['status'] === 'in_bearbeitung' ? $user : '';
                 $entry['app']['last_action'] = 'restore';
                 return $entry;
-            });
-            tp_action_response($updated, $file);
+            }, false, $resultFile);
+            tp_action_response($updated, $resultFile);
         }
 
         if ($action === 'purge') {
             if (!tp_is_admin()) {
                 tp_json_response(['ok' => false, 'error' => 'Admin erforderlich.'], 403);
             }
-            $path = tp_inbox_file_path($file);
+            $active = tp_inbox_file_path($file);
             $lock = tp_inbox_lock();
             try {
+                $trash = tp_trash_directory() . DIRECTORY_SEPARATOR . basename($active);
+                $inTrash = file_exists($trash) || is_link($trash);
+                $path = $inTrash ? $trash : $active;
                 $entry = is_link($path) ? null : tp_read_json_file($path);
                 if (!is_array($entry)) {
                     tp_json_response(['ok' => false, 'error' => 'Datei konnte nicht gelesen werden.'], 400);
                 }
                 $entry = tp_ensure_entry_app($entry);
-                if (empty($entry['app']['deleted'])) {
+                if (!$inTrash && empty($entry['app']['deleted'])) {
                     tp_json_response(['ok' => false, 'error' => 'Endlöschung nur aus dem Papierkorb erlaubt.'], 400);
                 }
                 if (!@unlink($path)) {
@@ -1159,6 +1627,8 @@ function tp_handle_api(): void
         }
 
         tp_json_response(['ok' => false, 'error' => 'Unbekannte Aktion.'], 400);
+    } catch (DomainException $e) {
+        tp_json_response(['ok' => false, 'error' => $e->getMessage()], 409);
     } catch (Throwable $e) {
         tp_json_response(['ok' => false, 'error' => $e->getMessage()], 500);
     }
@@ -1272,6 +1742,14 @@ $isAdmin = tp_is_admin();
             flex: 0 0 auto;
             white-space: nowrap;
         }
+        .telephony-panel { padding: 0 14px 6px; }
+        .telephony-panel summary { cursor: pointer; color: var(--muted); font-size: 0.84rem; width: fit-content; }
+        .telephony-extensions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .telephony-extension { border: 1px solid var(--panel-border); border-radius: 10px; padding: 5px 9px; font-size: 0.82rem; }
+        .telephony-number { color: var(--muted); margin-left: 4px; }
+        .telephony-groups { display: flex; flex-wrap: wrap; gap: 6px; }
+        .telephony-groups label { display: inline-flex; align-items: center; gap: 3px; }
+        .telephony-unavailable { color: var(--muted); font-size: 0.82rem; }
         .summary-chip strong {
             color: var(--text);
             font-weight: 600;
@@ -1775,6 +2253,10 @@ $isAdmin = tp_is_admin();
             line-height: 1.38;
             text-align: left;
         }
+        .anliegen-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+        .anliegen-part + .anliegen-part { margin-top: 6px; }
+        .anliegen-part label { display: flex; align-items: baseline; gap: 6px; }
+        .anliegen-meta { color: var(--muted); font-size: 0.78rem; }
         .body-preview {
             overflow: hidden;
             display: -webkit-box;
@@ -1916,9 +2398,9 @@ $isAdmin = tp_is_admin();
             .place-setup-inner input[type="text"] { flex: 0 1 180px; }
         }
         @media (max-width: 580px) {
-            .topbar-row { grid-template-columns: minmax(0, 1fr) auto; }
-            .menu-shell { grid-column: 2; }
-            .topbar-summary, .topbar-row > .summary-toggle-chip { display: none; }
+            .topbar-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+            .menu-shell { grid-column: 3; }
+            .topbar-row > .summary-toggle-chip { display: none; }
             .topbar-title { max-width: 100%; }
             .topbar-title-meta { font-size: 0.75rem; }
             .place-setup-inner { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
@@ -1933,7 +2415,7 @@ $isAdmin = tp_is_admin();
 <div class="topbar">
     <div class="topbar-row">
         <div class="topbar-title"><span class="topbar-title-app"><?= tp_h(TELEPRAXIS_APP_NAME) ?></span><span class="topbar-title-meta">v<?= tp_h(TELEPRAXIS_APP_VERSION) ?> von Dr. Thomas Kienzle</span></div>
-        <div class="place-setup-row" id="place-setup-row">
+        <div class="place-setup-row" id="place-setup-row" hidden>
             <div class="place-setup-inner">
                 <label for="user-input-setup">Benutzer</label>
                 <input type="text" id="user-input-setup" value="<?= tp_h($initialUser) ?>" maxlength="<?= TELEPRAXIS_USER_MAXLEN ?>" placeholder="z.B. Julia" autocomplete="off">
@@ -1985,6 +2467,8 @@ $isAdmin = tp_is_admin();
 
                 <div class="menu-section">
                     <label class="menu-toggle-line"><span>Benachrichtigungs-Ton</span><input type="checkbox" id="sound-toggle" checked></label>
+                    <label class="menu-toggle-line"><span>T2med-Patientenanbindung</span><input type="checkbox" id="t2med-patient-toggle"<?= TELEPRAXIS_T2MED_ENABLED ? ' checked' : ' disabled' ?>></label>
+                    <label class="menu-toggle-line"><span>Telefonie</span><input type="checkbox" id="telephony-toggle"></label>
                     <label class="menu-toggle-line"><span>Abgeschlossen anzeigen</span><input type="checkbox" id="completed-toggle" checked></label>
                     <?php if ($isAdmin): ?>
                         <label class="menu-toggle-line"><span>Papierkorb anzeigen</span><input type="checkbox" id="trash-toggle"></label>
@@ -1995,6 +2479,10 @@ $isAdmin = tp_is_admin();
             </div>
         </div>
     </div>
+    <details class="telephony-panel" id="telephony-panel" hidden>
+        <summary>Nebenstellen</summary>
+        <div class="telephony-extensions" data-nst-list></div>
+    </details>
 </div>
 
 <div class="app-shell">
@@ -2073,12 +2561,16 @@ $isAdmin = tp_is_admin();
     </section>
 </div>
 
+<script src="telepraxis-telephony.js"></script>
 <script>
 (() => {
     const csrfToken = <?= json_encode($csrfToken, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const appName = <?= json_encode(TELEPRAXIS_APP_NAME, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const appVersion = <?= json_encode(TELEPRAXIS_APP_VERSION, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const t2medEnabled = <?= TELEPRAXIS_T2MED_ENABLED ? 'true' : 'false' ?>;
+    const patientToggle = document.getElementById('t2med-patient-toggle');
+    let patientIntegration = t2medEnabled && localStorage.getItem('kienzlefon_t2med_patient_enabled') !== '0';
+    let telephony = null;
     const t2medBaseUrl = <?= json_encode(TELEPRAXIS_T2MED_BASE_URL, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const identityFromUrl = <?= $identityFromUrl ? 'true' : 'false' ?>;
     const userMaxLength = <?= (int)TELEPRAXIS_USER_MAXLEN ?>;
@@ -2093,6 +2585,8 @@ $isAdmin = tp_is_admin();
     const recordingPlayers = new Map();
     let initialized = false;
     let lastEntries = [];
+    let latestRefresh = 0;
+    let refreshInProgress = false;
     let lastBookmarkUrl = '';
     const openSummaryFiles = new Set();
     const openCommentFiles = new Set();
@@ -2132,6 +2626,7 @@ $isAdmin = tp_is_admin();
         adminPassword: document.getElementById('admin-password'),
         menuToggleBtn: document.getElementById('menu-toggle-btn'),
         topbarRow: document.querySelector('.topbar-row'),
+        titleMeta: document.querySelector('.topbar-title-meta'),
         completedToggleTop: document.getElementById('completed-toggle-top'),
         completedToggleChip: document.getElementById('completed-toggle-chip'),
         headerMenu: document.getElementById('header-menu'),
@@ -2206,6 +2701,15 @@ $isAdmin = tp_is_admin();
         return activeIdentity.workplace;
     }
 
+    function applyIdentityDraft() {
+        activeIdentity = draftIdentity();
+        for (const [input, value] of [[els.userInputSetup, currentUser()], [els.workplaceInputSetup, currentWorkplace()]]) {
+            input.hidden = Boolean(value);
+            input.labels[0].hidden = input.hidden;
+        }
+        els.placeSetupRow.hidden = Boolean(currentUser() && currentWorkplace());
+    }
+
     function setMenuOpen(isOpen) {
         if (!els.headerMenu || !els.menuToggleBtn) return;
         els.headerMenu.hidden = !isOpen;
@@ -2216,25 +2720,13 @@ $isAdmin = tp_is_admin();
         const container = els.headerSummary;
         const row = els.topbarRow;
         if (!container || !row) return;
-        const items = Array.from(container.querySelectorAll('.summary-chip'));
-        items.forEach(item => { item.hidden = false; });
-        if (els.completedToggleChip) {
-            els.completedToggleChip.hidden = false;
-        }
-
-        let guard = 0;
-        while ((row.scrollWidth > row.clientWidth || container.scrollWidth > container.clientWidth) && guard < 20) {
-            guard += 1;
-            const lastVisible = [...items].reverse().find(item => !item.hidden);
-            if (lastVisible) {
-                lastVisible.hidden = true;
-                continue;
-            }
-            if (els.completedToggleChip && !els.completedToggleChip.hidden) {
-                els.completedToggleChip.hidden = true;
-                continue;
-            }
-            break;
+        const chips = Array.from(container.children);
+        const optional = [els.titleMeta, ...chips.reverse(), els.completedToggleChip];
+        for (const item of optional) item.hidden = false;
+        for (const item of optional) {
+            if (row.scrollWidth <= row.clientWidth && container.scrollWidth <= container.clientWidth
+                && els.titleMeta.scrollWidth <= els.titleMeta.clientWidth) break;
+            item.hidden = true;
         }
     }
 
@@ -2282,7 +2774,7 @@ $isAdmin = tp_is_admin();
             setUserInputs(sanitizeUserValue(localStorage.getItem('telepraxis_user') ?? localStorage.getItem('telepraxis_workplace') ?? ''));
             setWorkplaceInputs(sanitizeWorkplaceValue(localStorage.getItem('telepraxis_client_id') || ''));
         }
-        activeIdentity = draftIdentity();
+        applyIdentityDraft();
         const soundEnabled = localStorage.getItem('telepraxis_sound_enabled');
         els.soundToggle.checked = soundEnabled === null ? true : soundEnabled === '1';
         const showCompleted = localStorage.getItem('telepraxis_show_completed');
@@ -2306,7 +2798,7 @@ $isAdmin = tp_is_admin();
     }
 
     function saveWorkplace() {
-        activeIdentity = draftIdentity();
+        applyIdentityDraft();
         setUserInputs(currentUser());
         setWorkplaceInputs(currentWorkplace());
         localStorage.setItem('telepraxis_user', currentUser());
@@ -2321,6 +2813,10 @@ $isAdmin = tp_is_admin();
         if (els.bookmarkOpenBtn) {
             els.bookmarkOpenBtn.hidden = true;
         }
+    }
+
+    function trashIsOpen() {
+        return isAdmin && !!els.trashToggle?.checked;
     }
 
     function applyVisibilitySettings() {
@@ -2339,7 +2835,7 @@ $isAdmin = tp_is_admin();
             els.completedColumn.classList.add('hidden');
             els.columns.classList.add('hide-completed');
         }
-        const showTrash = !!(els.trashToggle && isAdmin && els.trashToggle.checked);
+        const showTrash = trashIsOpen();
         if (els.trashToggle) {
             localStorage.setItem('telepraxis_show_trash', els.trashToggle.checked ? '1' : '0');
         }
@@ -2552,10 +3048,19 @@ $isAdmin = tp_is_admin();
         const phone = callUrl
             ? `<a class="${cssClass}" href="${escapeHtml(callUrl)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" title="Rückruf starten">${escapeHtml(display || '')}</a>`
             : `<button type="button" class="${cssClass}" data-t2med-unavailable="${escapeHtml(reason)}">${escapeHtml(display || '')}</button>`;
-        const record = recordUrl
+        const record = !patientIntegration ? '' : recordUrl
             ? `<a class="btn btn-record" href="${escapeHtml(recordUrl)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" aria-label="Patientenakte öffnen" title="Patientenakte öffnen">Akte</a>`
             : `<button type="button" class="btn btn-record" data-t2med-unavailable="${escapeHtml(reason)}" title="${escapeHtml(reason)}">Akte</button>`;
         return `<span class="phone-actions">${phone}${record}</span>`;
+    }
+
+    function createCategoryTags(entry, plain = false) {
+        const labels = entry.anliegen?.parts.length
+            ? [...new Set(entry.anliegen.parts.map(part => part.label))]
+            : [entry.category_label || '—'];
+        if (plain && !entry.anliegen) return escapeHtml(labels[0]);
+        const tags = labels.map(label => `<span class="category-tag">${escapeHtml(label)}</span>`).join('');
+        return labels.length > 1 ? `<span class="anliegen-tags">${tags}</span>` : tags;
     }
 
     function createHeader(entry) {
@@ -2580,7 +3085,7 @@ $isAdmin = tp_is_admin();
             <div class="card-header-box">
                 ${nameLine}
                 <div class="header-line">
-                    <span class="category-tag">${escapeHtml(entry.category_label)}</span>
+                    ${createCategoryTags(entry)}
                     ${phoneNode}
                 </div>
                 <div class="header-line">
@@ -2645,6 +3150,7 @@ $isAdmin = tp_is_admin();
     }
 
     function createRecordings(entry) {
+        if (entry.audio_failed) return '<div class="detail-block">Die Audioaufnahmen konnten nicht übertragen werden.</div>';
         const clips = Array.isArray(entry.recordings) ? entry.recordings : [];
         if (!clips.length) return '';
         const file = String(entry.file || '');
@@ -2736,7 +3242,7 @@ $isAdmin = tp_is_admin();
                 : '';
             return `
                 <div class="actions">
-                    <button class="btn btn-primary" data-action="set_status" data-status="abgeschlossen" data-file="${file}">Fertig</button>
+                    <button class="btn btn-primary" data-action="set_status" data-status="abgeschlossen" data-file="${file}"${entry.anliegen && !entry.anliegen.complete ? ' disabled title="Bitte zuerst alle Teilanliegen erledigen."' : ''}>Fertig</button>
                     <button class="btn" data-action="set_status" data-status="neu" data-file="${file}">Zurücksetzen</button>
                     <button class="btn ${entry.urgent ? 'btn-danger' : ''}" data-action="toggle_urgent" data-file="${file}">Dringend</button>
                     <button class="btn" type="button" data-toggle-comment="${file}">Kommentar</button>
@@ -2762,6 +3268,22 @@ $isAdmin = tp_is_admin();
         return '';
     }
 
+    function createAnliegenBody(entry, area) {
+        const group = entry.anliegen;
+        const warning = group && !group.valid ? '<div class="detail-block">Teilanliegen können wegen ungültiger Vorgangsdaten nicht abgehakt werden.</div>' : '';
+        const bodyClass = area === 'left' ? 'body-full' : 'body-preview';
+        if (area !== 'left' || !group?.valid) {
+            return `<div class="card-body ${bodyClass}" title="${escapeHtml(entry.body || '')}">${escapeHtml(entry.body || '—')}</div>${warning}`;
+        }
+        return `<div class="card-body">${group.parts.map(part => `<div class="anliegen-part">
+            <label><input type="checkbox" data-anliegen-id="${escapeHtml(part.id)}" data-file="${escapeHtml(entry.file)}"${part.done ? ' checked' : ''}>
+            <strong>${escapeHtml(part.label)}</strong>
+            ${part.done ? `<span class="anliegen-meta">${escapeHtml(part.completed_by)} · ${escapeHtml(part.completed_at)}</span>` : ''}
+            </label>
+            <div class="body-full">${escapeHtml(part.body || '—')}</div>
+        </div>`).join('')}</div>`;
+    }
+
     function createCard(entry, area) {
         const classes = ['card'];
         if (entry.deleted) {
@@ -2770,7 +3292,6 @@ $isAdmin = tp_is_admin();
             classes.push(`status-${entry.status}`);
         }
         if (entry.urgent) classes.push('urgent');
-        const bodyClass = area === 'left' ? 'body-full' : 'body-preview';
         const deletedExtra = area === 'trash'
             ? `<div class="transmitted-row"><strong>Gelöscht:</strong> ${escapeHtml(entry.deleted_at_display || '—')}</div>`
             : '';
@@ -2778,7 +3299,7 @@ $isAdmin = tp_is_admin();
             <article class="${classes.join(' ')}" data-entry-file="${escapeHtml(entry.file || '')}">
                 ${area === 'middle' || area === 'right' || area === 'trash' ? createSelectionControl(area, entry, false) : ''}
                 ${createHeader(entry)}
-                <div class="card-body ${bodyClass}" title="${escapeHtml(entry.body || '')}">${escapeHtml(entry.body || '—')}</div>
+                ${createAnliegenBody(entry, area)}
                 ${area === 'left' ? createLeftExtras(entry) : createRecordings(entry) + createReceivedSmsHistory(entry)}
                 ${deletedExtra}
                 ${createCardActions(entry, area)}
@@ -2826,7 +3347,7 @@ $isAdmin = tp_is_admin();
                         return `
                         <tr class="${rowClass}${urgentClass}">
                             <td>${createSelectionControl(area, entry, true)}</td>
-                            <td>${escapeHtml(entry.category_label || '—')}</td>
+                            <td>${createCategoryTags(entry, true)}</td>
                             <td class="table-patient"><div class="table-name">${name}${birth}</div><div class="table-received">${escapeHtml(entry.received_at_display || '—')}</div>${t2medEnabled ? `<div class="table-phone">${createPhoneActions(entry.telephone_display, entry.telephone_href, entry.telephone_raw)}</div>` : ''}</td>
                             <td><div class="table-preview${area === 'middle' || area === 'right' ? ' table-preview-clamped' : ''}" title="${escapeHtml(entry.body || '—')}">${escapeHtml(entry.body || '—')}</div>${createRecordings(entry)}${createReceivedSmsHistory(entry)}</td>
                             ${hasDeletedCol ? `<td class="table-received">${escapeHtml(entry.deleted_at_display || '—')}</td>` : ''}
@@ -2845,6 +3366,7 @@ $isAdmin = tp_is_admin();
         const bearbeitung = active.filter(e => e.status === 'in_bearbeitung').length;
         const abgeschlossen = active.filter(e => e.status === 'abgeschlossen').length;
         const dringend = active.filter(e => e.urgent).length;
+        const phoneCounters = telephony?.summary() || [];
         const summaryItems = [
             ['neu', 'Neu', neu],
             ['dringend', 'Dringend', dringend],
@@ -2852,9 +3374,13 @@ $isAdmin = tp_is_admin();
             ['abgeschlossen', 'Abgeschlossen', abgeschlossen],
             ['benutzer', 'Benutzer', currentUser() || '—'],
             ['platz', 'Platz', workplace],
+            ...phoneCounters,
         ];
         if (els.headerSummary) {
-            els.headerSummary.innerHTML = summaryItems.map(([key, label, value]) => `<span class="summary-chip" data-summary-key="${escapeHtml(key)}"><span>${escapeHtml(label)}:</span> <strong>${escapeHtml(String(value))}</strong></span>`).join('');
+            els.headerSummary.innerHTML = summaryItems.map((item) => {
+                const [key, label, value, hint] = item;
+                return `<span class="summary-chip${phoneCounters.includes(item) ? ' telephony-counter' : ''}" data-summary-key="${escapeHtml(key)}"${hint ? ` title="${escapeHtml(hint)}"` : ''}><span>${escapeHtml(label)}:</span> <strong>${escapeHtml(String(value))}</strong></span>`;
+            }).join('');
             updateHeaderSummaryVisibility();
         }
         if (els.menuStats) {
@@ -2863,7 +3389,9 @@ $isAdmin = tp_is_admin();
                 `<div class="menu-stat-line"><span>Neu</span><strong>${escapeHtml(String(neu))}</strong></div>`,
                 `<div class="menu-stat-line"><span>Dringend</span><strong>${escapeHtml(String(dringend))}</strong></div>`,
                 `<div class="menu-stat-line"><span>In Bearbeitung</span><strong>${escapeHtml(String(bearbeitung))}</strong></div>`,
-                `<div class="menu-stat-line"><span>Abgeschlossen</span><strong>${escapeHtml(String(abgeschlossen))}</strong></div>`
+                `<div class="menu-stat-line"><span>Abgeschlossen</span><strong>${escapeHtml(String(abgeschlossen))}</strong></div>`,
+                ...phoneCounters.map(([, label, value, hint]) =>
+                    `<div class="menu-stat-line"${hint ? ` title="${escapeHtml(hint)}"` : ''}><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`)
             ].join('');
         }
     }
@@ -2932,6 +3460,11 @@ $isAdmin = tp_is_admin();
         lines.push('');
         lines.push('Inhalt:');
         lines.push(entry.body || '—');
+        if (entry.anliegen?.valid) {
+            entry.anliegen.parts.forEach((part, index) => {
+                lines.push(`${index + 1}. ${part.label} · ${part.done ? `Erledigt · ${part.completed_by} · ${part.completed_at}` : 'Offen'}`);
+            });
+        }
         if (entry.summary) {
             lines.push('');
             lines.push('Zusammenfassung des Gesprächs:');
@@ -3112,10 +3645,15 @@ $isAdmin = tp_is_admin();
         return data;
     }
 
-    async function refresh() {
+    async function refresh(skipIfBusy = false) {
+        if (skipIfBusy && refreshInProgress) return;
+        const request = ++latestRefresh;
+        refreshInProgress = true;
         try {
-            const response = await fetch(`${window.location.pathname}?ajax=list&_=${Date.now()}`, { credentials: 'same-origin', cache: 'no-store' });
+            const trashParameter = trashIsOpen() ? '&trash=1' : '';
+            const response = await fetch(`${window.location.pathname}?ajax=list${trashParameter}&_=${Date.now()}`, { credentials: 'same-origin', cache: 'no-store' });
             const data = await response.json();
+            if (request !== latestRefresh) return;
             if (!response.ok || !data.ok) throw new Error(data.error || 'Liste konnte nicht geladen werden.');
             if (data.csrf) currentCsrf = data.csrf;
             if (typeof data.is_admin === 'boolean') isAdmin = data.is_admin;
@@ -3136,10 +3674,28 @@ $isAdmin = tp_is_admin();
             }
             lastSeenIds = ids;
             render(entries);
+            if (data.trash_warning && !skipIfBusy) showMessage(data.trash_warning, true);
             initialized = true;
         } catch (error) {
-            showMessage(error.message || 'Aktualisierung fehlgeschlagen.', true);
+            if (request === latestRefresh) {
+                showMessage(error.message || 'Aktualisierung fehlgeschlagen.', true);
+            }
+        } finally {
+            if (request === latestRefresh) {
+                refreshInProgress = false;
+            }
         }
+    }
+
+    function updateTrashVisibility() {
+        if (!trashIsOpen()) {
+            lastEntries = lastEntries.filter(entry => !entry.deleted);
+            selected.trash.clear();
+            els.trashBody.replaceChildren();
+            els.countTrash.textContent = '0';
+        }
+        applyVisibilitySettings();
+        refresh();
     }
 
     async function handleAction(target) {
@@ -3413,6 +3969,24 @@ $isAdmin = tp_is_admin();
     });
 
     document.addEventListener('change', event => {
+        const checkbox = event.target.closest('[data-anliegen-id]');
+        if (checkbox) {
+            const post = new FormData();
+            post.set('action', 'set_anliegen');
+            post.set('file', checkbox.dataset.file);
+            post.set('anliegen_id', checkbox.dataset.anliegenId);
+            post.set('done', checkbox.checked ? '1' : '0');
+            post.set('csrf', currentCsrf);
+            post.set('benutzer', currentUser());
+            post.set('workplace', currentWorkplace());
+            checkbox.disabled = true;
+            apiRequest(post).then(() => refresh()).catch(error => {
+                checkbox.disabled = false;
+                checkbox.checked = !checkbox.checked;
+                showMessage(error.message || 'Teilanliegen konnte nicht geändert werden.', true);
+            });
+            return;
+        }
         const selectInput = event.target.closest('[data-select-area][data-select-file]');
         if (!selectInput) return;
         setSelection(selectInput.getAttribute('data-select-area') || '', selectInput.getAttribute('data-select-file') || '', !!selectInput.checked);
@@ -3466,11 +4040,11 @@ $isAdmin = tp_is_admin();
         }
         applyVisibilitySettings();
     });
-    els.trashToggle?.addEventListener('change', applyVisibilitySettings);
+    els.trashToggle?.addEventListener('change', updateTrashVisibility);
     els.trashArrowBtn?.addEventListener('click', () => {
         if (!isAdmin || !els.trashToggle) return;
         els.trashToggle.checked = !els.trashToggle.checked;
-        applyVisibilitySettings();
+        updateTrashVisibility();
     });
     els.adminLoginBtn?.addEventListener('click', adminLogin);
     els.adminLogoutBtn?.addEventListener('click', adminLogout);
@@ -3521,9 +4095,25 @@ $isAdmin = tp_is_admin();
     window.addEventListener('resize', updateHeaderSummaryVisibility);
 
     document.addEventListener('pointerdown', ensureAudioContext, { once: true });
+    if (patientToggle) {
+        patientToggle.checked = patientIntegration;
+        patientToggle.addEventListener('change', () => {
+            patientIntegration = t2medEnabled && patientToggle.checked;
+            localStorage.setItem('kienzlefon_t2med_patient_enabled', patientIntegration ? '1' : '0');
+            render(lastEntries);
+        });
+    }
     loadLocalSettings();
+    const telephonyToggle = document.getElementById('telephony-toggle');
+    if (window.KienzlefonTelephony && telephonyToggle) {
+        telephony = new window.KienzlefonTelephony(telephonyToggle, document.getElementById('telephony-panel'),
+            currentWorkplace, () => renderStats(lastEntries), showMessage);
+        telephony.restart();
+    } else if (telephonyToggle) {
+        telephonyToggle.disabled = true;
+    }
     refresh();
-    window.setInterval(refresh, <?= (int)TELEPRAXIS_POLL_INTERVAL_MS ?>);
+    window.setInterval(() => refresh(true), <?= (int)TELEPRAXIS_POLL_INTERVAL_MS ?>);
 })();
 </script>
 </body>

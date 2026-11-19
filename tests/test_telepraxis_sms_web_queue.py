@@ -188,6 +188,7 @@ echo json_encode([$exports,$replies]);
         incoming = [c for c in saved["app"]["comments"] if c.get("kind") == "sms_received"]
         self.assertEqual(len(incoming), 3)
         self.assertIn(text, [c["text"] for c in incoming])
+        self.assertEqual(self.action("set_status", status="abgeschlossen")[0], 200)
         self.assertEqual(self.action("soft_delete")[0], 200)
         self.assertEqual(self.action("admin_login", password="integration-admin")[0], 200)
         self.assertEqual(self.action("restore")[0], 200)
@@ -210,7 +211,8 @@ echo json_encode([$exports,$replies]);
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             )
             process.stdin.write(json.dumps({"action": "add_comment", "csrf": self.csrf,
-                                           "file": self.card.name, "workplace": "Test", "comment_text": "Parallelnotiz"}))
+                                           "file": self.card.name, "workplace": "Test", "benutzer": "testplatz",
+                                           "comment_text": "Parallelnotiz"}))
             process.stdin.close()
             process.stdin = None
             try:
@@ -236,7 +238,8 @@ echo json_encode([$exports,$replies]);
         source = (self.site / "telepraxis-app.php").read_text()
         names = ["escapeHtml", "createCommentItems", "createReceivedSmsHistory", "createCard",
                  "createCardActions", "createHeader", "createPhoneActions", "createSelectionControl", "createTable",
-                 "tableActionButtons", "selectionChecked", "buildCardText", "captureTransientState", "restoreTransientState"]
+                 "tableActionButtons", "selectionChecked", "buildCardText", "captureTransientState", "restoreTransientState",
+                 "createRecordings", "createCategoryTags", "createAnliegenBody"]
         functions = []
         for name in names:
             start = source.index("    function " + name + "(")
@@ -247,6 +250,7 @@ echo json_encode([$exports,$replies]);
 const assert = require('node:assert/strict');
 const t2medEnabled = false;
 const selected = {middle:new Set(),right:new Set(),trash:new Set()};
+const openRecordingFiles = new Set();
 const comment = {kind:'sms_received',text:'<script>unsafe</script>\nSMS Text',
     created_at_display:'29.09.2026 12:02',sms_sender:'<img src=x onerror=evil()>'};
 const entry = {file:'example.json',status:'neu',body:'Hauptanliegen',comments:[comment]};
@@ -291,7 +295,7 @@ assert.equal(els.leftColumn.scrollTop,18);
     def test_incoming_sms_polling_plays_existing_tone_once_and_respects_mute(self):
         source = (self.site / "telepraxis-app.php").read_text()
         functions = []
-        for name in ("ensureAudioContext", "playNotificationTone", "refresh"):
+        for name in ("ensureAudioContext", "playNotificationTone", "trashIsOpen", "refresh"):
             match = re.search(r"^    (?:async )?function " + name + r"\(", source, re.M)
             start = match.start()
             end = re.search(r"^    (?:async )?function ", source[start + 1:], re.M)
@@ -301,6 +305,8 @@ const assert = require('node:assert/strict');
 let lastSeenIds = new Set();
 const seenIncomingSmsKeys = new Set();
 let initialized = false, currentCsrf = '', isAdmin = false;
+let latestRefresh = 0;
+let refreshInProgress = false;
 let nextResponse, responseOk = true;
 const errors = [], tones = [];
 const els = {soundToggle:{checked:true}};
@@ -375,10 +381,12 @@ const poll = async entries => {
 
     def test_regular_app_soft_delete_restore_and_admin_only_purge(self):
         self.send()
+        self.assertEqual(self.action("set_status", status="abgeschlossen")[0], 200)
         code, _ = self.action("soft_delete")
         self.assertEqual(code, 200)
-        self.assertTrue(self.card.exists())
-        self.assertTrue(self.card_view()["deleted"])
+        archived = self.card.parent / "papierkorb" / self.card.name
+        self.assertFalse(self.card.exists())
+        self.assertTrue(json.loads(archived.read_text())["app"]["deleted"])
         for action in ("restore", "purge"):
             self.assertEqual(self.action(action)[0], 403)
         self.assertEqual(self.action("admin_login", password="integration-admin")[0], 200)
@@ -390,6 +398,7 @@ const poll = async entries => {
         self.assertEqual(self.action("soft_delete")[0], 200)
         self.assertEqual(self.action("purge")[0], 200)
         self.assertFalse(self.card.exists())
+        self.assertFalse(archived.exists())
 
     def test_comments_status_and_urgent_flag_survive_queue_integration(self):
         self.send()

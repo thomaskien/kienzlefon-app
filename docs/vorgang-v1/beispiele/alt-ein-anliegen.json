@@ -1,0 +1,21 @@
+{
+  "received_at": "2026-11-18T10:00:00+01:00",
+  "remote_ip": "",
+  "user_agent": "kienzlefon-beispiel",
+  "typ": "rezeptbestellung",
+  "payload": {
+    "typ": "rezeptbestellung",
+    "id": "unbekannt",
+    "telefon": "unbekannt",
+    "vorname": "Test",
+    "nachname": "Beispiel",
+    "geburtsdatum": "",
+    "medikamente": "Testmedikament A",
+    "zusammenfassung": "Rezept für Testmedikament A.",
+    "_kienzlefon": {
+      "version": "1.0",
+      "vorgang_id": "20261118_095500_000001",
+      "audio": []
+    }
+  }
+}

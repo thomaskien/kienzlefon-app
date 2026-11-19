@@ -1,6 +1,37 @@
 # Originalaufnahmen als Miniplayer in kienzlefon-app
 
-**Status:** Optional feature, disabled by default.
+## Vorgangsbezogene Audio-Beilagen ab App 3.7
+
+Der Kienzlefon-Installer fragt bei Installation, Update und Neukonfiguration,
+ob Audio beigelegt oder nur JSON ausgegeben wird. Beigefügte WAVs liegen
+dauerhaft ausschließlich im Begleitverzeichnis des Vorgangs in der Inbox.
+Ab der Ablage entscheidet allein die App über Aufbewahrung und Löschung.
+`TELEPRAXIS_AUDIO_RETENTION_DAYS` in `telepraxis-app.php` legt die optionale
+Frist in Tagen ab Ablage des Audioordners fest. Der Standardwert `0` lässt die
+WAVs bis zur manuellen Ablage im Papierkorb bestehen. Die App prüft eine
+gesetzte Frist beim Einlesen der aktiven Inbox. Geschlossene Vorgänge zählen
+bis zum Verschieben in den Papierkorb zur aktiven Inbox.
+
+Nach **Fertig** steht der Vorgang unter **Abgeschlossen** und vorhandene
+WAV-Beilagen bleiben abspielbar. Beim Verschieben in den **Papierkorb**
+loescht die App saemtliche noch vorhandenen WAVs des Vorgangs am Ablageort.
+Das gilt fuer offene und abgeschlossene Vorgaenge.
+Im Papierkorb liegt ausschliesslich die JSON. Wiederherstellen bringt die
+JSON zurueck. Eine erneute Lieferung desselben Vorgangs darf geloeschte WAVs
+nicht wiederherstellen.
+
+Player-Metadaten, Dateizugriff und JSON-Transport referenzieren dieselbe
+Beilage. Der Spool wird nach bestätigter Ablage des vollständigen Pakets
+oder der JSON mit Audio-Fehlerhinweis bereinigt. Die
+[Spezifikation für den Abholer v1](vorgang-v1/AUDIO.md)
+beschreibt den geplanten Transport.
+
+Die App liefert Beilagen über `telepraxis-app.php?ajax=audio` aus. PHP braucht
+Leserechte an WAVs und Schreibrechte am Audioordner sowie seinem Elternordner.
+Die Inbox außerhalb des Webroots ablegen oder direkten HTTP-Zugriff auf die
+gesamte Inbox im Webserver sperren. Bestehende Installationen mit Ready-Spool
+können die nachstehende optionale Abspielanbindung weiter verwenden. Der
+Ready-Spool gehört zum Erzeuger und unterliegt weiterhin dessen Bereinigung.
 
 ## Verhalten
 
@@ -12,7 +43,7 @@
 
 Die Dateinamen sind keine aus Telefonnummern geratenen Pfade. Für jeden JSON-Vorgang wird die darin enthaltene `_kienzlefon.vorgang_id` mit dem JSON-Dateinamen verglichen. Die Aufnahme muss unter `audio/<name>.wav` liegen. Leere oder ausdrücklich fehlende Aufnahmen werden übersprungen.
 
-## Installation auf derselben VM wie Kienzlefon
+## Bestehende Ready-Spool-Anbindung auf derselben VM wie Kienzlefon
 
 Voraussetzung: `telepraxis-app.php` läuft auf einem Webserver mit direktem Dateizugriff auf den Kienzlefon-Spool. Bei einer getrennten Webserver-VM funktioniert der Symlink **nicht**; dann müsste das Verzeichnis gemountet oder synchronisiert werden.
 

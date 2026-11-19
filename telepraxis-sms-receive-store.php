@@ -866,12 +866,24 @@ function tp_sms_receive_export_one(array $settings): ?array
                 ? $row['export_file'] : 'sms-' . $recordKey . '.json';
             $finalPath = $target['path'] . DIRECTORY_SEPARATOR . $fileName;
             clearstatcache(true, $finalPath);
+            // A published case may have been moved to the trash before recovery.
+            if (!file_exists($finalPath) && !is_link($finalPath)) {
+                $trashDirectory = $target['path'] . DIRECTORY_SEPARATOR . 'papierkorb';
+                clearstatcache(true, $trashDirectory);
+                if (is_dir($trashDirectory) && !is_link($trashDirectory)) {
+                    $archivedPath = $trashDirectory . DIRECTORY_SEPARATOR . $fileName;
+                    clearstatcache(true, $archivedPath);
+                    if (is_file($archivedPath) && !is_link($archivedPath)) {
+                        $finalPath = $archivedPath;
+                    }
+                }
+            }
             if (!file_exists($finalPath) && !is_link($finalPath)) {
                 tp_sms_receive_commit_export($pdo, $recordKey, 'held', 'output_missing_after_interruption');
                 return ['record_key' => $recordKey, 'state' => 'held', 'failure_code' => 'output_missing_after_interruption'];
             }
             if (tp_sms_receive_output_matches($finalPath, $recordKey)) {
-                tp_sms_receive_confirm_output($finalPath, $target['path']);
+                tp_sms_receive_confirm_output($finalPath, dirname($finalPath));
                 tp_sms_receive_commit_export($pdo, $recordKey, 'exported', null);
                 return ['record_key' => $recordKey, 'state' => 'exported', 'failure_code' => null];
             }

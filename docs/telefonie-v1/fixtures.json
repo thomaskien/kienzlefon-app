@@ -1,0 +1,6058 @@
+{
+  "contract_version": "1.0.2",
+  "fixtures": [
+    {
+      "name": "overview-current",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-statistics-before-first-capture",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 0,
+            "status": "partial",
+            "as_of": null,
+            "reason_code": "initial_partial_day",
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 0
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 0
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 0
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 0
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 0
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 0
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 0
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 0
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 0
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 0
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 0
+              }
+            ],
+            "unclassified_calls": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-statistics-gap",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "partial",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": "capture_gap",
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-statistics-disabled",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": null,
+            "status": "unavailable",
+            "as_of": null,
+            "reason_code": "not_configured",
+            "routes": null,
+            "unclassified_calls": null
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-global-disabled",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": false,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "global_disabled",
+                  "disable_reason": "global_disabled"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "global_disabled",
+                  "disable_reason": "global_disabled"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "global_disabled",
+                  "disable_reason": "global_disabled"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "global_disabled",
+                  "disable_reason": "global_disabled"
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "global_disabled",
+                  "disable_reason": "global_disabled"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "global_disabled",
+                  "disable_reason": "global_disabled"
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-control-unavailable-statistics-current",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "unavailable",
+          "reason_code": "source_disconnected",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": null,
+          "age_ms": null,
+          "max_age_ms": 10000,
+          "waiting": null,
+          "ivr": null,
+          "ai": null
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": false,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": null,
+          "as_of": null,
+          "age_ms": null,
+          "max_age_ms": 10000,
+          "reason_code": "source_disconnected",
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-last-member",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "last_member"
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-after-pbx-restart",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "22222222-2222-4222-8222-222222222222",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "22222222-2222-4222-8222-222222222222",
+          "revision": "r1:22222222-2222-4222-8222-222222222222:1",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "control-capabilities",
+      "schema": "ControlCapabilities",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "pbx_id": "practice-example",
+        "features": {
+          "live_counters": true,
+          "routing_control": true,
+          "statistics_events": true
+        },
+        "limits": {
+          "command_ttl_seconds": 30,
+          "max_body_bytes": 8192,
+          "max_age_ms": 10000,
+          "request_retention_seconds": 604800
+        }
+      }
+    },
+    {
+      "name": "control-state",
+      "schema": "ControlState",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "pbx_id": "practice-example",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "routing-command",
+      "schema": "RoutingCommand",
+      "valid": true,
+      "body": {
+        "request_id": "33333333-3333-4333-8333-333333333333",
+        "client_id": "empfang-1",
+        "extension": "301",
+        "route": "normal",
+        "member": true,
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "2026-11-18T10:00:30+01:00"
+      }
+    },
+    {
+      "name": "request-accepted",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "accepted",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": null
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "request-applying",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "applying",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": null
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "request-applied",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "applied",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:01+01:00",
+          "applied_at": "2026-11-18T10:00:01+01:00",
+          "result_revision": "r1:11111111-1111-4111-8111-111111111111:18",
+          "changed": true,
+          "error": null
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "request-applied-noop",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "applied",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:01+01:00",
+          "applied_at": "2026-11-18T10:00:01+01:00",
+          "result_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "changed": false,
+          "error": null
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "request-unknown",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "unknown",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": {
+            "code": "upstream_timeout",
+            "message": "upstream timeout",
+            "retryable": true,
+            "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+            "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+          }
+        },
+        "error": {
+          "code": "upstream_timeout",
+          "message": "upstream timeout",
+          "retryable": true,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "request-rejected",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "rejected",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": {
+            "code": "revision_conflict",
+            "message": "revision conflict",
+            "retryable": false,
+            "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+            "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+          }
+        },
+        "error": {
+          "code": "revision_conflict",
+          "message": "revision conflict",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "request-expired",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "expired",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": {
+            "code": "request_expired",
+            "message": "request expired",
+            "retryable": false,
+            "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+            "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+          }
+        },
+        "error": {
+          "code": "request_expired",
+          "message": "request expired",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "request-expired-restart",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "expired",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": {
+            "code": "pbx_restarted",
+            "message": "pbx restarted",
+            "retryable": false,
+            "current_revision": "r1:22222222-2222-4222-8222-222222222222:1",
+            "current_pbx_epoch": "22222222-2222-4222-8222-222222222222"
+          }
+        },
+        "error": {
+          "code": "pbx_restarted",
+          "message": "pbx restarted",
+          "retryable": false,
+          "current_revision": "r1:22222222-2222-4222-8222-222222222222:1",
+          "current_pbx_epoch": "22222222-2222-4222-8222-222222222222"
+        }
+      }
+    },
+    {
+      "name": "error-invalid_request",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "invalid_request",
+          "message": "invalid request",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-unknown_extension",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "unknown_extension",
+          "message": "unknown extension",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-unknown_route",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "unknown_route",
+          "message": "unknown route",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-unknown_client",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "unknown_client",
+          "message": "unknown client",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-unauthenticated",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "unauthenticated",
+          "message": "unauthenticated",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-forbidden_origin",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "forbidden_origin",
+          "message": "forbidden origin",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-forbidden_network",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "forbidden_network",
+          "message": "forbidden network",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-csrf_failed",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "csrf_failed",
+          "message": "csrf failed",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-client_forbidden",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "client_forbidden",
+          "message": "client forbidden",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-global_disabled",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "global_disabled",
+          "message": "global disabled",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-admin_locked",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "admin_locked",
+          "message": "admin locked",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-not_eligible",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "not_eligible",
+          "message": "not eligible",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-request_not_found",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "request_not_found",
+          "message": "request not found",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-not_found",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "not_found",
+          "message": "not found",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-method_not_allowed",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "method_not_allowed",
+          "message": "method not allowed",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-payload_too_large",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "payload_too_large",
+          "message": "payload too large",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-json_required",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "json_required",
+          "message": "json required",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-revision_conflict",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "revision_conflict",
+          "message": "revision conflict",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-pbx_restarted",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "pbx_restarted",
+          "message": "pbx restarted",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-request_id_conflict",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "request_id_conflict",
+          "message": "request id conflict",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-last_member",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "last_member",
+          "message": "last member",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-state_unknown",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "state_unknown",
+          "message": "state unknown",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-request_expired",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "request_expired",
+          "message": "request expired",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-route_unavailable",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "route_unavailable",
+          "message": "route unavailable",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-not_supported",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "not_supported",
+          "message": "not supported",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-upstream_unreachable",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "upstream_unreachable",
+          "message": "upstream unreachable",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-upstream_authentication_failed",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "upstream_authentication_failed",
+          "message": "upstream authentication failed",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-state_unavailable",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "state_unavailable",
+          "message": "state unavailable",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-apply_failed",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "apply_failed",
+          "message": "apply failed",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "error-upstream_timeout",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "body": {
+        "error": {
+          "code": "upstream_timeout",
+          "message": "upstream timeout",
+          "retryable": false,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "app-bootstrap",
+      "schema": "AppBootstrap",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "csrf_token": "0000000000000000000000000000000000000000000000000000000000000000",
+        "clients": [
+          {
+            "id": "empfang-1",
+            "label": "Empfang 1",
+            "extension": "201"
+          }
+        ]
+      }
+    },
+    {
+      "name": "control-credentials-synthetic",
+      "schema": "ControlCredentials",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "identities": [
+          {
+            "id": "middleware-example",
+            "token_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "allowed_clients": [
+              "empfang-1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "routing-policy",
+      "schema": "RoutingPolicy",
+      "valid": true,
+      "body": {
+        "remote_enabled": true,
+        "extensions": [
+          {
+            "id": "201",
+            "normal": {
+              "eligible": true,
+              "default_member": true,
+              "can_enable": true,
+              "can_disable": true,
+              "penalty": 0
+            },
+            "specialist": {
+              "eligible": true,
+              "default_member": true,
+              "can_enable": true,
+              "can_disable": false,
+              "penalty": 0
+            }
+          },
+          {
+            "id": "202",
+            "normal": {
+              "eligible": true,
+              "default_member": true,
+              "can_enable": true,
+              "can_disable": true,
+              "penalty": 1
+            },
+            "specialist": {
+              "eligible": true,
+              "default_member": true,
+              "can_enable": true,
+              "can_disable": true,
+              "penalty": 0
+            }
+          },
+          {
+            "id": "301",
+            "normal": {
+              "eligible": true,
+              "default_member": false,
+              "can_enable": true,
+              "can_disable": true,
+              "penalty": 1
+            },
+            "specialist": {
+              "eligible": true,
+              "default_member": true,
+              "can_enable": true,
+              "can_disable": true,
+              "penalty": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid-string-member",
+      "schema": "RoutingCommand",
+      "valid": false,
+      "body": {
+        "request_id": "33333333-3333-4333-8333-333333333333",
+        "client_id": "empfang-1",
+        "extension": "301",
+        "route": "normal",
+        "member": "false",
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "2026-11-18T10:00:30+01:00"
+      }
+    },
+    {
+      "name": "invalid-unknown-route",
+      "schema": "RoutingCommand",
+      "valid": false,
+      "body": {
+        "request_id": "33333333-3333-4333-8333-333333333333",
+        "client_id": "empfang-1",
+        "extension": "301",
+        "route": "ivr9",
+        "member": true,
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "2026-11-18T10:00:30+01:00"
+      }
+    },
+    {
+      "name": "invalid-invalid-id",
+      "schema": "RoutingCommand",
+      "valid": false,
+      "body": {
+        "request_id": "123",
+        "client_id": "empfang-1",
+        "extension": "301",
+        "route": "normal",
+        "member": true,
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "2026-11-18T10:00:30+01:00"
+      }
+    },
+    {
+      "name": "invalid-numeric-extension",
+      "schema": "RoutingCommand",
+      "valid": false,
+      "body": {
+        "request_id": "33333333-3333-4333-8333-333333333333",
+        "client_id": "empfang-1",
+        "extension": 301,
+        "route": "normal",
+        "member": true,
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "2026-11-18T10:00:30+01:00"
+      }
+    },
+    {
+      "name": "invalid-raw-channel",
+      "schema": "RoutingCommand",
+      "valid": false,
+      "body": {
+        "request_id": "33333333-3333-4333-8333-333333333333",
+        "client_id": "empfang-1",
+        "extension": "301",
+        "route": "normal",
+        "member": true,
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "2026-11-18T10:00:30+01:00",
+        "channel": "PJSIP/301"
+      }
+    },
+    {
+      "name": "invalid-unavailable-has-counts",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "unavailable",
+          "reason_code": "stale",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-current-too-old",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 10000,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-success-without-confirmation",
+      "schema": "CommandResponse",
+      "valid": false,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "applied",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": null
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "invalid-empty-result",
+      "schema": "CommandResponse",
+      "valid": false,
+      "body": {
+        "request": null,
+        "error": null
+      }
+    },
+    {
+      "name": "invalid-deadline-format",
+      "schema": "RoutingCommand",
+      "valid": false,
+      "body": {
+        "request_id": "33333333-3333-4333-8333-333333333333",
+        "client_id": "empfang-1",
+        "extension": "301",
+        "route": "normal",
+        "member": true,
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "not-a-date+01:00"
+      }
+    },
+    {
+      "name": "invalid-deadline-calendar",
+      "schema": "RoutingCommand",
+      "valid": false,
+      "body": {
+        "request_id": "33333333-3333-4333-8333-333333333333",
+        "client_id": "empfang-1",
+        "extension": "301",
+        "route": "normal",
+        "member": true,
+        "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "expires_at": "2026-02-30T10:00:00+01:00"
+      }
+    },
+    {
+      "name": "invalid-generated-at",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "not-a-dateZ",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-statistics-date",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-02-30",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-extension-age-9999",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 9999,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-extension-age-10000",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 10000,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-extension-age-60000",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 60000,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-extension-missing-age",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": null,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-extension-missing-time",
+      "schema": "Overview",
+      "valid": false,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": null,
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-unknown-old-extension",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "unknown",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 60000,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-control-live-epoch",
+      "schema": "ControlState",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "pbx_id": "practice-example",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "22222222-2222-4222-8222-222222222222",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ]
+      },
+      "semantic_error": "epoch_mismatch"
+    },
+    {
+      "name": "invalid-control-root-epoch",
+      "schema": "ControlState",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "pbx_id": "practice-example",
+        "pbx_epoch": "22222222-2222-4222-8222-222222222222",
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ]
+      },
+      "semantic_error": "epoch_mismatch"
+    },
+    {
+      "name": "invalid-control-root-unknown",
+      "schema": "ControlState",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "pbx_id": "practice-example",
+        "pbx_epoch": null,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ]
+      },
+      "semantic_error": "epoch_unknown"
+    },
+    {
+      "name": "invalid-overview-mixed-epochs",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "22222222-2222-4222-8222-222222222222",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      },
+      "semantic_error": "epoch_mismatch"
+    },
+    {
+      "name": "overview-historical-unavailable-epoch",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "unavailable",
+          "reason_code": "source_disconnected",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": null,
+          "age_ms": null,
+          "max_age_ms": 10000,
+          "waiting": null,
+          "ivr": null,
+          "ai": null
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "22222222-2222-4222-8222-222222222222",
+          "revision": "r1:22222222-2222-4222-8222-222222222222:1",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "overview-control-invalid-statistics-current",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "unavailable",
+          "reason_code": "source_incomplete",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": null,
+          "age_ms": null,
+          "max_age_ms": 10000,
+          "waiting": null,
+          "ivr": null,
+          "ai": null
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": false,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": null,
+          "as_of": null,
+          "age_ms": null,
+          "max_age_ms": 10000,
+          "reason_code": "source_incomplete",
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "request-unknown-invalid-response",
+      "schema": "CommandResponse",
+      "valid": true,
+      "body": {
+        "request": {
+          "request_id": "33333333-3333-4333-8333-333333333333",
+          "client_id": "empfang-1",
+          "extension": "301",
+          "route": "normal",
+          "member": true,
+          "expected_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "expires_at": "2026-11-18T10:00:30+01:00",
+          "state": "unknown",
+          "created_at": "2026-11-18T10:00:00+01:00",
+          "updated_at": "2026-11-18T10:00:00+01:00",
+          "applied_at": null,
+          "result_revision": null,
+          "changed": null,
+          "error": {
+            "code": "state_unavailable",
+            "message": "Antwort der Anlage konnte nicht bestätigt werden.",
+            "retryable": true,
+            "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+            "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+          }
+        },
+        "error": {
+          "code": "state_unavailable",
+          "message": "Antwort der Anlage konnte nicht bestätigt werden.",
+          "retryable": true,
+          "current_revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "current_pbx_epoch": "11111111-1111-4111-8111-111111111111"
+        }
+      }
+    },
+    {
+      "name": "overview-routing-invalid-live-current",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": false,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": null,
+          "as_of": null,
+          "age_ms": null,
+          "max_age_ms": 10000,
+          "reason_code": "source_incomplete",
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": null,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": "state_unknown"
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid-overview-unknown-membership-can-disable",
+      "schema": "Overview",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "source": "live",
+        "capabilities": {
+          "live_counters": true,
+          "routing_control": true,
+          "call_statistics": true
+        },
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": true
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": null,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": false,
+                  "can_disable": true,
+                  "enable_reason": "state_unknown",
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "admin_locked"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "state": "idle",
+            "state_as_of": "2026-11-18T10:00:00+01:00",
+            "state_age_ms": 250,
+            "routing": {
+              "normal": false,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                }
+              }
+            }
+          }
+        ],
+        "call_statistics": {
+          "today": {
+            "date": "2026-11-18",
+            "timezone": "Europe/Berlin",
+            "period_start": "2026-11-18T00:00:00+01:00",
+            "period_end": "2026-11-19T00:00:00+01:00",
+            "incoming_calls": 47,
+            "status": "complete",
+            "as_of": "2026-11-18T10:00:00+01:00",
+            "reason_code": null,
+            "routes": [
+              {
+                "id": "ivr",
+                "label": "Sprachmenü",
+                "incoming_calls": 30
+              },
+              {
+                "id": "ai",
+                "label": "AI",
+                "incoming_calls": 12
+              },
+              {
+                "id": "queue",
+                "label": "Warteschlange",
+                "incoming_calls": 23
+              },
+              {
+                "id": "prescription",
+                "label": "Rezept",
+                "incoming_calls": 11
+              },
+              {
+                "id": "referral",
+                "label": "Überweisung",
+                "incoming_calls": 3
+              },
+              {
+                "id": "appointment",
+                "label": "Termin",
+                "incoming_calls": 4
+              },
+              {
+                "id": "callback",
+                "label": "Rückrufwunsch",
+                "incoming_calls": 2
+              },
+              {
+                "id": "other",
+                "label": "Sonstiges",
+                "incoming_calls": 1
+              },
+              {
+                "id": "opening_hours",
+                "label": "Öffnungszeiten",
+                "incoming_calls": 1
+              },
+              {
+                "id": "pharmacy",
+                "label": "Apotheke",
+                "incoming_calls": 1
+              },
+              {
+                "id": "specialist",
+                "label": "Fachstellen",
+                "incoming_calls": 6
+              }
+            ],
+            "unclassified_calls": 2
+          }
+        }
+      },
+      "semantic_error": "unknown_membership_permissions"
+    },
+    {
+      "name": "invalid-control-unavailable-group-can-enable",
+      "schema": "ControlState",
+      "valid": true,
+      "body": {
+        "schema_version": 1,
+        "pbx_id": "practice-example",
+        "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+        "generated_at": "2026-11-18T10:00:00+01:00",
+        "live_counters": {
+          "status": "current",
+          "reason_code": null,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "waiting": 2,
+          "ivr": 1,
+          "ai": 1
+        },
+        "routing_control": {
+          "supported": true,
+          "enabled": true,
+          "available": true,
+          "pbx_epoch": "11111111-1111-4111-8111-111111111111",
+          "revision": "r1:11111111-1111-4111-8111-111111111111:17",
+          "as_of": "2026-11-18T10:00:00+01:00",
+          "age_ms": 250,
+          "max_age_ms": 10000,
+          "reason_code": null,
+          "groups": [
+            {
+              "id": "normal",
+              "label": "Normal",
+              "ivr_digit": null,
+              "available": true
+            },
+            {
+              "id": "specialist",
+              "label": "ROT",
+              "ivr_digit": "9",
+              "available": false
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "id": "201",
+            "label": "Empfang 1",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "route_unavailable",
+                  "disable_reason": "route_unavailable"
+                }
+              }
+            }
+          },
+          {
+            "id": "202",
+            "label": "Empfang 2",
+            "routing": {
+              "normal": true,
+              "specialist": true,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": false,
+                  "can_disable": false,
+                  "enable_reason": "route_unavailable",
+                  "disable_reason": "route_unavailable"
+                }
+              }
+            }
+          },
+          {
+            "id": "301",
+            "label": "Sprechzimmer 1",
+            "routing": {
+              "normal": false,
+              "specialist": false,
+              "permissions": {
+                "normal": {
+                  "can_enable": true,
+                  "can_disable": true,
+                  "enable_reason": null,
+                  "disable_reason": null
+                },
+                "specialist": {
+                  "can_enable": true,
+                  "can_disable": false,
+                  "enable_reason": null,
+                  "disable_reason": "route_unavailable"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "semantic_error": "unavailable_group_permissions"
+    }
+  ]
+}

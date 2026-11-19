@@ -16,9 +16,11 @@ Dienste stoppen/starten duerfen; auf dem Zielsystem normalerweise `sudo` nutzen.
 PHP CLI und Web-PHP muessen kompatibel konfiguriert sein.
 
 Im Webroot muessen `telepraxis-app.php`, `telepraxis-sms.php` und `sms-config.php`
-bereits vorhanden sein. Diese Dateien und `telepraxis-sms-queue.php` werden als
-zusammengehoeriger Stand aktualisiert. Die Queue-Bibliothek darf dabei erstmals
-hinzukommen; dadurch wird der Versandweg `queue` nicht automatisch aktiviert.
+bereits vorhanden sein. Der Updater installiert auch `telepraxis-sms-queue.php`,
+`telepraxis-telephony.php`, `telepraxis-telephony.js` und
+`telepraxis-telephony-schema.json`. Diese vier Dateien dürfen bei einem älteren
+Zielstand erstmals hinzukommen. Die bisherigen Einstellungen für Queue und
+Telefonie bestimmen weiterhin, ob die Funktionen aktiv sind.
 
 Erhalten bleiben:
 
@@ -28,7 +30,9 @@ Erhalten bleiben:
 - SQLite-Datenbanken und ihre Journaldateien, Worker-Konfiguration und Schluessel.
 - In der App: `TELEPRAXIS_INBOX_DIR`, `TELEPRAXIS_ADMIN_PASSWORD`,
   `TELEPRAXIS_POLL_INTERVAL_MS`, `TELEPRAXIS_DEFAULT_TIMEZONE` und
-  `TELEPRAXIS_WORKPLACE_MAXLEN`.
+  `TELEPRAXIS_WORKPLACE_MAXLEN`. Falls im bisherigen Stand vorhanden, werden
+  auch `TELEPRAXIS_USER_MAXLEN`, die beiden `TELEPRAXIS_T2MED_*`-Konstanten,
+  `TELEPRAXIS_RECORDINGS_BASE_URL` und `TELEPRAXIS_AUDIO_RETENTION_DAYS` übernommen.
 - In SMS-Bibliothek und SMS-Konfiguration: `TP_SMS_CREDENTIALS_FILE`; in
   `sms-config.php` ausserdem `TP_SMS_CONFIG_ADMIN_PASSWORD`.
 - Die bisherigen Eigentuemer, Gruppen und Dateimodi der ersetzten Dateien.
@@ -100,28 +104,22 @@ sudo bash kienzlefon-app-update-v1.0.sh \
   --worker-service telepraxis-sms-worker.service
 ```
 
-Worker und seine beiden SMS-Bibliotheken werden gemeinsam mit der Webapp
-aktualisiert. Sein eigener `TP_SMS_CREDENTIALS_FILE`-Wert bleibt erhalten.
+Der Updater aktualisiert den Worker zusammen mit der Webapp. Zum Worker gehören
+`telepraxis-sms-worker.php`, `telepraxis-sms.php`, `telepraxis-sms-queue.php`
+sowie alle drei Empfangsmodule. Er prüft auch bei einem reinen Versandworker
+alle sechs Quelldateien vor dem Austausch. Fehlende Empfangsmodule im
+Worker-Zielverzeichnis installiert er mit den Rechten der dortigen SMS-Bibliothek.
+Ob der Empfang aktiviert ist, bestimmt weiterhin die lokale Worker-Konfiguration.
+Der eigene `TP_SMS_CREDENTIALS_FILE`-Wert des Workers bleibt erhalten.
 Der Updater stoppt laufende verwaltete Dienste vor dem Austausch und startet
 anschliessend nur die zuvor laufenden Dienste wieder. Er richtet keinen neuen
 SMS-Dienst ein und fuehrt weder `--once` noch einen Testversand aus.
 
-**Grenze bei aktiviertem Empfang:** Version 1.0 verwaltet im Worker-Verzeichnis
-nur `telepraxis-sms-worker.php`, `telepraxis-sms.php` und
-`telepraxis-sms-queue.php`. Die Empfangsmodule `telepraxis-sms-journal.php`,
-`telepraxis-sms-receive-store.php` und `telepraxis-sms-receive.php` werden weder
-neu installiert noch aktualisiert. Ein erfolgreicher Updater-Lauf bestaetigt
-daher keinen vollstaendigen Empfangsstand.
-
-Bei einem Empfangsupdate zuerst Web-PHP und SMS-Worker anhalten, Inbox und
-SQLite-Datenbank konsistent sichern und alle sechs Worker-Dateien sowie die
-Webapp aus demselben geprueften Stand installieren. Den Updater dabei nur im
-extern sichergestellten Wartungsmodus (`--no-service`) einsetzen, damit er den
-Worker nicht vor Austausch der Empfangsmodule wieder startet. Die bestehenden
-Dateirechte, Gruppen und Konfigurationen erhalten. Erst nach vollstaendigem
-Austausch und PHP-Pruefung die Dienste starten. App und Empfangsspeicher muessen
-dieselbe Inbox-Sperre verwenden; Details in
-[SMS-EMPFANG.md](SMS-EMPFANG.md#weitere-sms-zum-offenen-vorgang).
+Bei aktiviertem Empfang werden `telepraxis-sms-journal.php`,
+`telepraxis-sms-receive-store.php` und `telepraxis-sms-receive.php` gemeinsam
+mit den übrigen Worker-Dateien geprüft und vor dem Wiederstart installiert.
+So verwenden App und Empfangsspeicher die Inbox-Sperre desselben Stands.
+Die Vorgangszuordnung ist im Projekt `ionos` unter `docs/SMS-EMPFANG.md` beschrieben.
 
 Manuell gestartete Worker oder Prozesse in anderen Verzeichnissen muessen
 vorher separat angehalten werden. `--no-service` ist ausschliesslich fuer einen
@@ -132,8 +130,8 @@ Der Updater prueft diesen externen Wartungsmodus nicht.
 Der wieder gestartete Worker nimmt seinen normalen Betrieb auf und kann
 vorgemerkte SMS senden. Die neue Queue-Bibliothek kann beim regulaeren Betrieb
 das Datenbankschema migrieren. Der Updater selbst oeffnet oder migriert keine
-Queue-Datenbank. Hinweise zu deren separater Sicherung stehen in
-[SMS-QUEUE.md](SMS-QUEUE.md).
+Queue-Datenbank. Hinweise zu deren separater Sicherung stehen im Projekt
+`ionos` unter `docs/SMS-QUEUE.md`.
 
 ## Sicherung und Fehlerfall
 
@@ -145,10 +143,10 @@ Rechte nicht nachtraeglich. Jede Sicherung enthaelt Originaldateien und ein Mani
 mit Zielpfaden und Pruefsummen. Sie kann eingebettete Adminpasswoerter enthalten
 und darf nicht oeffentlich zugaenglich sein.
 
-Alle Kandidaten werden vor dem Austausch auf PHP-Syntax geprueft. Scheitert der
+Alle PHP-Kandidaten werden vor dem Austausch auf Syntax geprüft, das Telefonieschema auf gültiges JSON. Scheitert der
 Austausch oder ein anschliessender Dienststart, versucht der Updater, die
-Originaldateien und vorherigen Dienstzustaende wiederherzustellen. Eine neu
-hinzugefuegte Queue-Bibliothek wird dabei wieder entfernt. Ruecksetzfehler
+Originaldateien und vorherigen Dienstzustaende wiederherzustellen. Erstmals
+installierte Zusatzdateien werden dabei wieder entfernt. Ruecksetzfehler
 werden gemeldet; Sicherungen bleiben fuer eine manuelle Wiederherstellung
 erhalten. Der ausgegebene Sicherungspfad gehoert deshalb zum Updateprotokoll.
 Laesst sich ein Dienst nach einem fehlgeschlagenen Neustart nicht mehr stoppen,
@@ -163,9 +161,12 @@ Datensicherung und setzt ein inzwischen migriertes Queue-Schema nicht zurueck.
 
 ## Lokale Tests
 
+Im Projektordner `ionos` ausführen.
+
 ```sh
 bash -n kienzlefon-app-update-v1.0.sh
 python3 tests/test_app_update.py
+python3 tests/test_app_package.py
 ```
 
 Die Tests verwenden temporaere Installationen und simulierte Dienste. Sie

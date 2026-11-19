@@ -5,6 +5,7 @@
 # von Dr. Thomas Kienzle / ChatGPT
 #
 # Changelog
+# 2026-11-18: Empfangs- und Kontaktvorlage gemeinsam aus dem Komponentenpaket vorbereiten.
 # v1.8
 # - setzt das SSH-Home auf owner=<ssh-benutzer>, group=tp-<ssh-benutzer>, mode=0710
 # - erlaubt www-data damit nur das Durchqueren zum Inbox-Verzeichnis, ohne das SSH-Home schreibbar oder listbar zu machen
@@ -47,13 +48,12 @@
 
 set -euo pipefail
 
-BOOTSTRAP_URL="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main/telepraxis-receive.php"
-CONTACT_URL="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main/kontakt.php"
+UPSTREAM="https://raw.githubusercontent.com/thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis/refs/heads/main"
 WEB_ROOT="/var/www/html"
 WEB_USER="www-data"
 BASE_ROOT="/srv/telepraxis"
 STATE_ROOT="${BASE_ROOT}/state"
-PEM_TMP=""
+SOURCE_STAGE=""
 
 require_root() {
   if [ "$(id -u)" -ne 0 ]; then
@@ -69,16 +69,10 @@ need_cmd() {
   }
 }
 
-cleanup_pem_tmp() {
-  if [ -n "${PEM_TMP:-}" ]; then
-    rm -f -- "$PEM_TMP"
-  fi
-}
-
 ask_ssh_user() {
   local u=""
   while :; do
-    read -r -p "SSH-Benutzername: " u
+    read -r -p "SSH-Benutzername: " u || return 1
     if [[ "$u" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
       printf '%s\n' "$u"
       return 0
@@ -91,7 +85,7 @@ ask_ssh_pubkey() {
   local k=""
   echo "Bitte SSH-Public-Key in EINER Zeile einfügen (z. B. ssh-ed25519 ...):" >&2
   while :; do
-    read -r k
+    read -r k || return 1
     if printf '%s' "$k" | grep -Eq '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)|sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) '; then
       printf '%s\n' "$k"
       return 0
@@ -240,46 +234,35 @@ setup_dirs_and_ssh() {
   echo "  State: $state_dir"
 }
 
-download_php() {
-  local target="$1"
-  local backup=""
-
-  mkdir -p "$(dirname "$target")"
-
-  if [ -f "$target" ]; then
-    backup="${target}.bak.$(date +%Y%m%d_%H%M%S)"
-    cp -a "$target" "$backup"
-    echo "Backup erstellt: $backup"
-  fi
-
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$BOOTSTRAP_URL" -o "$target"
-  else
-    wget -qO "$target" "$BOOTSTRAP_URL"
-  fi
-
-  chmod 0644 "$target"
+stage_templates() {
+  local source_dir="$1" name
+  SOURCE_STAGE="$(mktemp -d)"
+  trap 'rm -rf -- "$SOURCE_STAGE"' EXIT
+  for name in telepraxis-receive.php kontakt.php; do
+    if [[ -n "$source_dir" ]]; then
+      if [[ ! -f "$source_dir/$name" || -L "$source_dir/$name" ]]; then
+        echo "Regulaere Paketdatei fehlt: $source_dir/$name" >&2
+        return 1
+      fi
+      cp -- "$source_dir/$name" "$SOURCE_STAGE/$name"
+    elif command -v curl >/dev/null 2>&1; then
+      curl -fsSL "$UPSTREAM/$name" -o "$SOURCE_STAGE/$name"
+    else
+      wget -qO "$SOURCE_STAGE/$name" "$UPSTREAM/$name"
+    fi
+    [[ -s "$SOURCE_STAGE/$name" ]] || { echo "Leere PHP-Vorlage: $name" >&2; return 1; }
+    php -l "$SOURCE_STAGE/$name" >/dev/null
+  done
 }
 
-download_contact() {
-  local target="$1"
-  local backup=""
-
-  mkdir -p "$(dirname "$target")"
-
-  if [ -f "$target" ]; then
+install_template() {
+  local source="$1" target="$2" backup
+  if [[ -f "$target" ]]; then
     backup="${target}.bak.$(date +%Y%m%d_%H%M%S)"
     cp -a "$target" "$backup"
     echo "Backup erstellt: $backup"
   fi
-
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$CONTACT_URL" -o "$target"
-  else
-    wget -qO "$target" "$CONTACT_URL"
-  fi
-
-  chmod 0644 "$target"
+  install -m 0644 "$source" "$target"
 }
 
 patch_php_file() {
@@ -294,13 +277,16 @@ import pathlib, re, sys
 php_file, inbox_dir, otp_db, ionos_secret, pem_file = sys.argv[1:]
 text = pathlib.Path(php_file).read_text(encoding='utf-8')
 pem = pathlib.Path(pem_file).read_text(encoding='utf-8').rstrip('\n')
+def php_string(value):
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
 patterns = [
-    (r"\$INBOX_DIR\s*=\s*'[^']*';", f"$INBOX_DIR = '{inbox_dir}';"),
-    (r"\$OTP_DB\s*=\s*'[^']*';", f"$OTP_DB = '{otp_db}';"),
-    (r"\$IONOS_PSK\s*=\s*'[^']*';", f"$IONOS_PSK = '{ionos_secret}';"),
+    (r"\$INBOX_DIR\s*=\s*'[^']*';", f"$INBOX_DIR = {php_string(inbox_dir)};"),
+    (r"\$OTP_DB\s*=\s*'[^']*';", f"$OTP_DB = {php_string(otp_db)};"),
+    (r"\$IONOS_PSK\s*=\s*'[^']*';", f"$IONOS_PSK = {php_string(ionos_secret)};"),
 ]
 for pattern, replacement in patterns:
-    new_text, count = re.subn(pattern, replacement, text, count=1)
+    new_text, count = re.subn(pattern, lambda _: replacement, text, count=1)
     if count != 1:
         raise SystemExit(f"Patch fehlgeschlagen fuer Pattern: {pattern}")
     text = new_text
@@ -405,14 +391,24 @@ show_summary() {
 }
 
 main() {
+  local source_dir=""
+  if [[ $# == 1 && ( "$1" == --help || "$1" == -h ) ]]; then
+    echo "Aufruf: bash quellserver-benutzer-erzeugen-v1.8.sh [--source-dir VERZEICHNIS]"
+    return 0
+  fi
+  if (( $# )); then
+    if [[ $# != 2 || "$1" != --source-dir || ! -d "$2" || -L "$2" ]]; then
+      echo "Erwartet: --source-dir VERZEICHNIS (regulaeres Verzeichnis)" >&2
+      return 2
+    fi
+    source_dir="$(CDPATH= cd -P -- "$2" && pwd -P)"
+  fi
   require_root
   need_cmd php
   need_cmd python3
   need_cmd openssl
-  if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
-    echo "Es wird curl oder wget benoetigt."
-    exit 1
-  fi
+  if [[ -z "$source_dir" ]] && ! command -v curl >/dev/null 2>&1; then need_cmd wget; fi
+  stage_templates "$source_dir"
 
   local ssh_user=""
   local shared_group=""
@@ -429,9 +425,11 @@ main() {
   shared_group="tp-${ssh_user}"
   ssh_pubkey="$(ask_ssh_pubkey)"
 
-  PEM_TMP="$(mktemp)"
-  trap cleanup_pem_tmp EXIT
-  ask_public_key_pem "$PEM_TMP"
+  local pem="$SOURCE_STAGE/public.pem"
+  ask_public_key_pem "$SOURCE_STAGE/input.pem"
+  openssl rsa -pubin -in "$SOURCE_STAGE/input.pem" -pubout -out "$pem" 2>/dev/null || {
+    echo "Ungueltiger oeffentlicher RSA-Schluessel." >&2; return 1;
+  }
   ionos_secret="$(ask_ionos_secret)"
 
   home="${BASE_ROOT}/${ssh_user}"
@@ -441,15 +439,17 @@ main() {
   target_php="${WEB_ROOT}/telepraxis-receive-${ssh_user}.php"
   contact_php="${WEB_ROOT}/kontakt-${ssh_user}.php"
 
+  patch_php_file "$SOURCE_STAGE/telepraxis-receive.php" "$inbox" "$otp_db" "$pem" "$ionos_secret"
+  patch_contact_file "$SOURCE_STAGE/kontakt.php" "$otp_db" "/telepraxis-receive-${ssh_user}.php"
+
   ensure_group "$shared_group"
   ensure_user "$ssh_user" "$home"
   setup_dirs_and_ssh "$ssh_user" "$shared_group" "$ssh_pubkey"
-  download_php "$target_php"
-  patch_php_file "$target_php" "$inbox" "$otp_db" "$PEM_TMP" "$ionos_secret"
-  download_contact "$contact_php"
-  patch_contact_file "$contact_php" "$otp_db" "/telepraxis-receive-${ssh_user}.php"
+  mkdir -p "$WEB_ROOT"
+  install_template "$SOURCE_STAGE/telepraxis-receive.php" "$target_php"
+  install_template "$SOURCE_STAGE/kontakt.php" "$contact_php"
   maybe_restart_webstack
   show_summary "$ssh_user" "$shared_group" "$inbox" "$state_dir" "$target_php" "$ionos_secret" "$contact_php"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

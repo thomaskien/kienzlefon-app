@@ -396,6 +396,17 @@ class SmsFollowupTest(unittest.TestCase):
         self.assertIsNone(duplicate)
         self.assertEqual(len(json.loads((self.inbox / "case.json").read_text())["app"]["comments"]), 1)
 
+        # Recovery also recognizes an already published comment after the case was moved.
+        archived = self.inbox / "papierkorb" / "case.json"
+        archived.parent.mkdir()
+        (self.inbox / "case.json").rename(archived)
+        with sqlite3.connect(self.db) as database:
+            database.execute("UPDATE sms_receive_journal SET export_status='exporting' WHERE uid='recover'")
+        recovered = self.php("echo json_encode(tp_sms_receive_export_one($settings));")
+        self.assertEqual(json.loads(recovered.stdout)["state"], "exported")
+        self.assertFalse((self.inbox / "case.json").exists())
+        self.assertEqual(len(json.loads(archived.read_text())["app"]["comments"]), 1)
+
         missing = self.entry("missing", phone="+491709999999")
         self.php(f"tp_sms_receive_store($settings, $device, [{missing}]);")
         connection = sqlite3.connect(self.db)

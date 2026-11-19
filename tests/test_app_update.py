@@ -9,6 +9,7 @@ import json
 import os
 import pty
 import shutil
+import sqlite3
 import stat
 import subprocess
 import tempfile
@@ -22,6 +23,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 UPDATER = REPOSITORY / "kienzlefon-app-update-v1.0.sh"
+RECEIVE_MODULES = ("telepraxis-sms-journal.php", "telepraxis-sms-receive-store.php", "telepraxis-sms-receive.php")
 
 
 def load_updater():
@@ -136,6 +138,10 @@ class AppUpdateTests(unittest.TestCase):
         write(self.source / "sms-config.php", NEW_CONFIG)
         write(self.source / "telepraxis-sms-queue.php", NEW_QUEUE)
         write(self.source / "telepraxis-sms-worker.php", NEW_WORKER, 0o750)
+        for name in RECEIVE_MODULES:
+            shutil.copyfile(REPOSITORY / name, self.source / name)
+        for name in ("telepraxis-telephony.php", "telepraxis-telephony.js", "telepraxis-telephony-schema.json"):
+            shutil.copyfile(REPOSITORY / name, self.source / name)
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -229,6 +235,13 @@ class AppUpdateTests(unittest.TestCase):
         result = self.run_update("--no-service", "--yes")
         self.assert_failed_without_web_mutation(result, before)
         self.assertFalse(self.backups.exists())
+
+    def test_source_must_support_existing_optional_settings(self) -> None:
+        write(self.webroot / "telepraxis-app.php", OLD_APP + "const TELEPRAXIS_T2MED_ENABLED = true;\n")
+        before = digest_tree(self.webroot)
+        result = self.run_update("--check")
+        self.assert_failed_without_web_mutation(result, before)
+        self.assertIn("TELEPRAXIS_T2MED_ENABLED", result.stderr)
 
     def test_duplicate_required_constant_fails_without_exchange(self) -> None:
         write(self.source / "telepraxis-sms.php", NEW_SMS + "const TP_SMS_CREDENTIALS_FILE = 'duplicate';\n")
@@ -357,10 +370,46 @@ esac
         )
         write(worker / "telepraxis-sms.php", worker_sms, 0o600)
         write(worker / "telepraxis-sms-queue.php", NEW_QUEUE.replace("'new'", "'old'"), 0o600)
+        # Frueherer Empfangsstand mit einer fehlenden Zusatzdatei.
+        for name in RECEIVE_MODULES[:2]:
+            write(worker / name, "<?php // previous revision\n", 0o640)
+        write(worker / "worker.json", '{"receive":{"enabled":true}}', 0o600)
+        db = sqlite3.connect(worker / "outbox.sqlite")
+        try:
+            db.execute("CREATE TABLE messages (status TEXT)")
+            db.execute("INSERT INTO messages VALUES ('pending')")
+            db.commit()
+        finally:
+            db.close()
+        before = digest_tree(worker)
 
-        result = self.run_update("--worker-dir", str(worker), "--no-service", "--yes")
+        updater = load_updater()
+        events = []
 
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        def start(service):
+            events.append(("start", service))
+            if service == "telepraxis-sms-worker.service":
+                for name in RECEIVE_MODULES:
+                    self.assertEqual((worker / name).read_bytes(), (self.source / name).read_bytes())
+                    self.assertFalse((self.webroot / name).exists())
+
+        find_command = shutil.which
+        with mock.patch.object(updater, "detect_web_service", return_value=("php-fpm.service", True)), \
+             mock.patch.object(updater.shutil, "which", side_effect=lambda name: "/mock/systemctl" if name == "systemctl" else find_command(name)), \
+             mock.patch.object(updater, "require_loaded_service"), \
+             mock.patch.object(updater, "is_service_active", return_value=True), \
+             mock.patch.object(updater, "manual_worker_running", return_value=False), \
+             mock.patch.object(updater, "stop_service", side_effect=lambda service: events.append(("stop", service))), \
+             mock.patch.object(updater, "start_service", side_effect=start):
+            self.assertEqual(self.run_in_process(updater, "--worker-dir", str(worker)), 0)
+        self.assertEqual(events, [("stop", "telepraxis-sms-worker.service"), ("stop", "php-fpm.service"),
+                                  ("start", "php-fpm.service"), ("start", "telepraxis-sms-worker.service")])
+        after = digest_tree(worker)
+        for name in ("worker.json", "outbox.sqlite"):
+            self.assertEqual(before[name], after[name])
+        for name in RECEIVE_MODULES[:2]:
+            self.assertEqual(before[name][1], after[name][1])
+        self.assertEqual(after[RECEIVE_MODULES[2]][1], 0o600)
         self.assertIn("const WORKER_VERSION_MARKER = 'new';", (worker / "telepraxis-sms-worker.php").read_text())
         updated_sms = (worker / "telepraxis-sms.php").read_text(encoding="utf-8")
         self.assertIn("const SMS_VERSION_MARKER = 'new';", updated_sms)
@@ -368,6 +417,20 @@ esac
         self.assertIn("const QUEUE_VERSION_MARKER = 'new';", (worker / "telepraxis-sms-queue.php").read_text())
         web_sms = (self.webroot / "telepraxis-sms.php").read_text(encoding="utf-8")
         self.assertIn("const TP_SMS_CREDENTIALS_FILE = __DIR__ . '/private/sms;cred\\\\name.json';", web_sms)
+
+    def test_missing_receive_source_prevents_check_and_install(self) -> None:
+        worker = self.root / "worker"
+        worker.mkdir()
+        for name in ("telepraxis-sms-worker.php", "telepraxis-sms.php", "telepraxis-sms-queue.php", *RECEIVE_MODULES):
+            shutil.copyfile(self.source / name, worker / name)
+        (self.source / RECEIVE_MODULES[1]).unlink()
+        before_web, before_worker = digest_tree(self.webroot), digest_tree(worker)
+        for action in ("--check", "--yes"):
+            result = self.run_update("--worker-dir", str(worker), action)
+            self.assert_failed_without_web_mutation(result, before_web)
+            self.assertIn(RECEIVE_MODULES[1], result.stderr)
+            self.assertEqual(digest_tree(worker), before_worker)
+            self.assertFalse(self.backups.exists())
 
     def test_explicit_worker_requires_complete_existing_installation(self) -> None:
         worker = self.root / "worker"
@@ -426,6 +489,12 @@ esac
     def test_actual_repository_source_passes_check_and_update(self) -> None:
         for name in ("telepraxis-app.php", "telepraxis-sms.php", "sms-config.php", "telepraxis-sms-queue.php"):
             shutil.copyfile(REPOSITORY / name, self.source / name)
+        old_app = self.webroot / "telepraxis-app.php"
+        with old_app.open("a", encoding="utf-8") as handle:
+            handle.write("const TELEPRAXIS_T2MED_ENABLED = true;\n"
+                         "const TELEPRAXIS_T2MED_BASE_URL = 'http://middleware.example:8765';\n"
+                         "const TELEPRAXIS_RECORDINGS_BASE_URL = 'recordings';\n"
+                         "const TELEPRAXIS_AUDIO_RETENTION_DAYS = 14;\n")
         before = digest_tree(self.webroot)
         checked = self.run_update("--check")
         self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
@@ -434,8 +503,12 @@ esac
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         content = (self.webroot / "telepraxis-app.php").read_text()
         self.assertIn("const TELEPRAXIS_APP_NAME = 'kienzlefon app';", content)
-        self.assertIn("const TELEPRAXIS_APP_VERSION = '3.6';", content)
+        self.assertIn("const TELEPRAXIS_APP_VERSION = '3.7';", content)
         self.assertIn("const TELEPRAXIS_POLL_INTERVAL_MS = 4000 + 250;", content)
+        self.assertIn("const TELEPRAXIS_T2MED_ENABLED = true;", content)
+        self.assertIn("const TELEPRAXIS_T2MED_BASE_URL = 'http://middleware.example:8765';", content)
+        self.assertIn("const TELEPRAXIS_RECORDINGS_BASE_URL = 'recordings';", content)
+        self.assertIn("const TELEPRAXIS_AUDIO_RETENTION_DAYS = 14;", content)
 
     def run_in_process(self, updater, *extra):
         args = [str(UPDATER), "--webroot", str(self.webroot), "--source-dir", str(self.source),

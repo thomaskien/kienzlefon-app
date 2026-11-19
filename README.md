@@ -1,12 +1,11 @@
 # kienzlefon app
 
-Kompakte Ein(zwei)-Dateien-Webapp zur Bearbeitung eingehender JSON-Vorgänge aus dem Verzeichnis `./inbox`.
+Kompakte Web-App zur Bearbeitung eingehender JSON-Vorgänge aus der konfigurierten Inbox.
 
-Die **kienzlefon app** hieß bisher **telepraxis-app**. Die aktuelle Version **3.6**
-vom 12.10.2026 ergänzt die optionale T2med-Anbindung und trennt Benutzer und
-Platz. SMS-Queue, Empfang, farbige SMS-Kommentare, einmalige Bestätigung und
-Benachrichtigungston bleiben erhalten. Die bisherigen Screenshots zeigen noch
-ältere Versionen und den alten Namen.
+Die **kienzlefon app** hieß bisher **telepraxis-app**. Version **3.7** ergänzt
+Teilanliegen, Audio-Beilagen aus der Inbox und die optionale Telefonieübersicht.
+Der bisherige Release ist unter `v3.6` abrufbar. Die Screenshots zeigen ältere
+Versionen.
 
 Die Haupt-App bleibt `telepraxis-app.php`. Für SMS-Versand wird zusätzlich `telepraxis-sms.php` als separate Funktionsdatei eingebunden; die Konfiguration erfolgt über `sms-config.php`.
 
@@ -22,8 +21,23 @@ Die App ist für mehrere Arbeitsplätze gedacht:
 - **Abgeschlossen**: erledigte Vorgänge
 - **Papierkorb**: gelöschte Vorgänge, nur mit Admin-Funktion sichtbar
 
-**Benutzer** und **Platz** werden in der Kopfzeile oder im Hamburger-Menü
-eingetragen und mit **Speichern** (oder Enter) übernommen. Benutzer bezeichnet
+Die App legt gelöschte Vorgänge im Unterordner `papierkorb/` der konfigurierten
+Inbox ab. Sie lädt diesen Ordner nur bei geöffnetem Papierkorb und aktiver
+Admin-Sitzung. Beim ersten Einlesen verschiebt sie ältere, als gelöscht
+markierte Vorgänge aus der Inbox in den Unterordner. Verschieben und
+Wiederherstellen vergeben bei belegtem Zielnamen den ersten freien Namen wie
+`fall-2.json` oder `fall-3.json`. Die bereits vorhandene Datei bleibt erhalten.
+Bei einer Kollision mit einem an den Dateinamen gebundenen SMS-Verlauf meldet
+die App einen Konflikt, weil die SMS sonst dem falschen Vorgang zugeordnet werden könnte.
+Nur neue und abgeschlossene Vorgänge lassen sich in den Papierkorb verschieben.
+Die Praxis entscheidet, wann sie den Papierkorb
+leert. Die App kann den Ordner selbst anlegen. Liegt die Inbox unterhalb des
+Webroots, muss der Webserver direkte HTTP-Zugriffe auf die gesamte Inbox
+einschließlich ihrer Unterordner sperren.
+
+Die Kopfzeile zeigt Eingabefelder für **Benutzer** und **Platz**, solange die
+jeweilige Angabe fehlt. Im Hamburger-Menü lassen sich beide Werte jederzeit
+ändern und mit **Speichern** (oder Enter) übernehmen. Benutzer bezeichnet
 den Bearbeiter, etwa `Julia` oder `Dr. Müller`. Der Platz bezeichnet den
 Telefonplatz, etwa `empfang-1`, und wird als `client_id` an T2med übergeben.
 Die Angaben werden getrennt im Browser gespeichert. Änderungen in den
@@ -31,6 +45,10 @@ Eingabefeldern gelten erst nach Speichern für Vorgänge und Telefonaktionen.
 
 Links erscheinen die Vorgänge des eigenen Benutzers, auch nach einem Wechsel
 des Platzes. Vorgänge anderer Benutzer bleiben in der mittleren Spalte sichtbar.
+Über **Bearbeiten** kann ein anderer Benutzer den Vorgang übernehmen. Bei
+mehreren Anliegen speichert jedes Häkchen den zugehörigen Benutzer und Zeitpunkt.
+Sobald alle Teilanliegen erledigt sind, schließt **Fertig** den Kasten ab.
+Die Eingabestruktur steht im [Vertrag für Mehrfach-Anliegen](docs/vorgang-v1/ANLIEGEN.md).
 Kommentare, Statusänderungen, Papierkorb-Aktionen und SMS werden dem Benutzer
 zugeordnet. Für Bearbeitungsaktionen ist ein Benutzer erforderlich; für die
 optionalen T2med-Aktionen zusätzlich ein Platz.
@@ -55,7 +73,7 @@ Rückfallwerte. Die sichtbare Bezeichnung `Platz` und der URL-Parameter
 
 Die App lädt die Daten regelmäßig neu und eignet sich damit für den laufenden Einsatz im Praxisalltag.
 
-## Originalaufnahmen als Miniplayer (Feature-Branch)
+## Originalaufnahmen als Miniplayer
 
 Optional lassen sich die von Kienzlefon/Whisper aufgenommenen WAV-Segmente
 unmittelbar in der Vorgangskarte oder Tabellenansicht abspielen: ein Player
@@ -65,15 +83,29 @@ werden nach der vorhandenen `payload._kienzlefon.audio`-Metadatenliste
 angezeigt. Der Bereich ist zunächst eingeklappt. Laufende Wiedergabe
 wird beim fünfsekündigen App-Refresh nicht zurückgesetzt.
 
-Zur Einrichtung einen Webserver-Symlink `recordings/` auf den
-Kienzlefon-`ready`-Spool bereitstellen und in `telepraxis-app.php`
-`TELEPRAXIS_RECORDINGS_BASE_URL` auf `'recordings'` setzen.
-Ohne diese Einstellung ist das Feature deaktiviert. Es wird weder eine
-eigene Audio-API noch eine individuelle Berechtigung je Aufnahme eingeführt.
+WAV-Beilagen unter `inbox/<vorgang_id>/audio/` werden automatisch angeboten.
+**Fertig** lässt die Aufnahmen abspielbar. Beim Verschieben in den Papierkorb
+löscht die App die WAVs und archiviert die JSON. Eine optional konfigurierte
+Löschfrist gilt für WAV-Beilagen im Vorgangsordner.
 
-**[Installationshinweise und Tests](docs/RECORDINGS.md)** – insbesondere
-Verzeichnisrechte und die Beschränkung des Symlink-Webpfads auf WAVs
-(`call.json` darf nicht unbeabsichtigt öffentlich werden).
+[Installationshinweise für WAV-Beilagen und bestehende Ready-Spool-Installationen](docs/RECORDINGS.md)
+
+## Optionale Telefonieübersicht
+
+Im Hamburger-Menü lassen sich **Telefonie** und **T2med-Patientenanbindung**
+getrennt einschalten. Die Telefonie ergänzt die Zählerleiste um Warteschleife,
+IVR, AI und Anrufe heute. Der Bereich **Nebenstellen** lässt sich darunter
+aufklappen. **Normal** und **ROT** zeigen den bestätigten Stand der Anlage.
+Die Administration und die Middleware geben die Schaltmöglichkeiten vor.
+
+Für den Server eine Kopie der [Beispielkonfiguration](config/telephony-config.example.php)
+unter `/etc/kienzlefon-app/telephony-config.php` oder am PHP-seitig gesetzten
+Pfad `KIENZLEFON_TELEPHONY_CONFIG` ablegen. Die App startet mit deaktiviertem
+Proxy. Vor der Aktivierung die private Verbindung vom App-Host zur Middleware,
+den Dienstschlüssel und die dort freigegebenen Clients einrichten.
+Die Schlüsseldatei liegt außerhalb des Webroots, ist für PHP lesbar und hat
+Modus `0600`. Der Proxy braucht denselben Web-Zugriffsschutz wie die App.
+[Telefonievertrag v1.0.2](docs/telefonie-v1/HTTP.md)
 
 ## Optionale kienzlefon-t2med-Anbindung
 
@@ -108,9 +140,8 @@ ist nicht nötig.
   der Akte-Knopf entfällt.
 
 Die Integration ordnet einen bereits in der Middleware konfigurierten Client zu;
-sie legt dort keine neuen Clients an. Der bisherige Updater v1.0 übernimmt die
-neuen `TELEPRAXIS_T2MED_*`- und `TELEPRAXIS_USER_MAXLEN`-Einstellungen noch nicht
-bei späteren Dateiwechseln; diese Werte danach im Dateikopf kontrollieren.
+sie legt dort keine neuen Clients an. Der mitgelieferte Updater übernimmt vorhandene
+`TELEPRAXIS_T2MED_*`- und `TELEPRAXIS_USER_MAXLEN`-Einstellungen.
 
 ### Datenkompatibilität und Prüfung
 
@@ -198,10 +229,9 @@ des Webroots. Vorgänge, SMS-Konfigurationsdateien, Schlüssel und Fetch-Dienst
 bleiben erhalten. Ein vorhandener separater SMS-Worker kann gemeinsam mit
 seinen Bibliotheken aktualisiert werden.
 
-Der Updater umfasst bisher nur den Worker und seine beiden Versandbibliotheken.
-Die drei zusätzlichen Empfangsmodule müssen separat aus demselben Quellstand
-installiert werden. Bei aktiviertem Empfang App und Empfangsspeicher koordiniert
-aktualisieren; siehe [SMS-Empfang](docs/SMS-EMPFANG.md#weitere-sms-zum-offenen-vorgang).
+Webapp, Telefonie-PHP, Browsermodul und Schema werden gemeinsam aktualisiert.
+Bei vorhandenem Worker installiert der Updater auch Journal, Empfangsspeicher und
+Empfangsmodul aus demselben Stand, bevor er den Worker wieder startet.
 
 Aus einem vollständigen lokalen Quellverzeichnis auf dem Zielsystem zunächst
 prüfen, anschließend das Update starten:
@@ -330,6 +360,16 @@ Das Ziel ist, dass sensible JSON-Daten:
 
 
 # Installer-Ablauf
+
+Für den gemeinsamen Installer die Komponente im Projektordner `ionos` packen.
+
+```bash
+bash scripts/pack.sh --output /absoluter/pfad/kienzlefon-app.tar.gz
+```
+
+Die Aufrufe für Schlüsselvorbereitung vor dem Fon-Setup, Zielinstallation, Quellkanal und Update stehen in der [Anleitung für den gemeinsamen Installer](docs/INSTALLER.md).
+
+Die interaktiven Einzelaufrufe sind weiterhin verfügbar.
 
 <pre>
 # Quellserver-Webbasis:
