@@ -45,7 +45,10 @@ require_root() { :; }
 ensure_group() { event group "$@"; }
 ensure_user() { event user "$@"; }
 install_php_extension_packages() { event packages "$@"; }
-systemctl() { event systemctl "$@"; }
+systemctl() {
+  event systemctl "$@"
+  if [[ -x "$SANDBOX/systemctl" ]]; then "$SANDBOX/systemctl" "$@"; fi
+}
 usermod() { event usermod "$@"; }
 chown() { :; }
 setfacl() { :; }
@@ -289,6 +292,65 @@ class AppPackageTests(unittest.TestCase):
                 packages = out.splitlines()[-1].split()[2:]
                 self.assertEqual(set(packages), {"php-curl", "php-xml", "php-sqlite3"} |
                                  ({"jq", "openssh-client", "openssl", "python3-cryptography"} if mode == "1" else set()))
+
+    def test_web_restarts_after_group_assignment_and_propagates_failures(self):
+        # A long unfiltered inventory used to trigger SIGPIPE on the early Apache match.
+        inventory = self.host / "services"
+        lines = ["apache2.service loaded active running Apache"]
+        lines.extend(f"test-{i}.service loaded active running Test" for i in range(10000))
+        lines.extend(["nginx.service loaded inactive dead nginx",
+                      "php8.3-fpm.service loaded active running PHP",
+                      "php8.4-fpm.service loaded reloading reload PHP"])
+        inventory.write_text("\n".join(lines) + "\n")
+        systemctl = self.host / "systemctl"
+        systemctl.write_text(r"""#!/bin/bash
+set -eu
+case "$1" in
+  list-unit-files) cat "$SANDBOX/services" ;;
+  list-units)
+    [[ ! -e "$SANDBOX/fail-list" ]] || exit 1
+    shift
+    while [[ "$1" == --* ]]; do
+      case "$1" in --state=*) states="${1#--state=}" ;; esac
+      shift
+    done
+    while read -r unit load state rest; do
+      [[ ",$states," == *",$state,"* ]] || continue
+      for pattern in "$@"; do
+        if [[ "$unit" == $pattern ]]; then
+          printf '%s %s %s %s\n' "$unit" "$load" "$state" "$rest"
+          break
+        fi
+      done
+    done < "$SANDBOX/services"
+    ;;
+  try-restart) [[ ! -e "$SANDBOX/fail-$2" ]] ;;
+  *) exit 2 ;;
+esac
+""")
+        systemctl.chmod(0o755)
+        args = (TARGET, "--user", "praxis", "--no-fetch")
+        events = self.host / "events"
+        for failure in ("", "fail-apache2.service", "fail-list"):
+            with self.subTest(failure=failure):
+                events.write_text("")
+                if failure:
+                    (self.host / failure).touch()
+                result = self.setup_host(*args, stdin="TestApp\nTestSMS\n", success=not failure)
+                log = events.read_text().splitlines()
+                restarts = [entry.split()[-1] for entry in log if entry.startswith("systemctl try-restart ")]
+                if failure == "fail-list":
+                    self.assertIn("konnten nicht ermittelt werden", result.stderr)
+                    self.assertEqual(restarts, [])
+                else:
+                    self.assertEqual(restarts, ["apache2.service", "php8.3-fpm.service", "php8.4-fpm.service"])
+                    self.assertLess(log.index("usermod -a -G tp-praxis praxis"),
+                                    log.index("systemctl try-restart apache2.service"))
+                if failure:
+                    if failure == "fail-apache2.service":
+                        self.assertIn("Neustart von apache2.service fehlgeschlagen", result.stderr)
+                    self.assertNotIn("Fertig.", result.stdout)
+                    (self.host / failure).unlink()
 
     def test_fon_channel_menu_without_forms(self):
         (self.source / "kontakt.php").unlink()

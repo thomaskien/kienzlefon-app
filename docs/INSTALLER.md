@@ -15,6 +15,8 @@ Die Dateiliste in `scripts/pack.sh` wählt Programmdateien, Konfigurationsbeispi
 
 Die Setup-Skripte laufen als root auf Linux. Der Praxisserver benötigt Python 3, PHP CLI, einen Webserver für `/var/www/html` und systemd. Auf Debian/Ubuntu richtet das Zielsetup die PHP-Erweiterungen über apt ein.
 
+Nach der Vergabe der Inbox-Gruppe startet das Zielsetup die laufenden Apache-, nginx- und PHP-FPM-Dienste neu, damit ihre Prozesse die Gruppenrechte übernehmen. Zeigt eine bereits installierte App mit Apache und mod_php bei aufeinanderfolgenden Abrufen abwechselnd Vorgänge und eine leere Inbox, obwohl die Dateien vorhanden sind, genügt bei veraltetem Gruppenstand ein einmaliges `sudo systemctl restart apache2`.
+
 Auf jedem beteiligten Linux-Host dieselbe Paketversion außerhalb des Webroots entpacken. Die folgenden Befehle verwenden beispielhaft `/opt/installer` als vorhandenes Entpackverzeichnis. `kanal1` durch den lokalen Zielbenutzer ersetzen und für beide Aufrufe auf dem App-Zielsystem beibehalten.
 
 ```bash

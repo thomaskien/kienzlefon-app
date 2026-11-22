@@ -6,6 +6,7 @@
 # von Dr. Thomas Kienzle / ChatGPT
 #
 # Changelog
+# 2026-11-22: Aktive Webdienste nach Vergabe der Inbox-Gruppe zuverlässig neu starten und Fehler melden.
 # 2026-11-19: Praxisserver mit SSH-Abholer oder lokaler Kienzlefon-Inbox aus dem Modulmenü installieren.
 # 2026-11-18: Paketquelle vorab pruefen; Schluessel separat fuer das Fon-Setup vorbereiten.
 # 2026-11-18 (Version unveraendert: v1.8)
@@ -238,9 +239,9 @@ ensure_dirs() {
   install -d -o "$user" -g "$shared_group" -m 2770 "$inbox_dir"
   install -d -o "$user" -g "$shared_group" -m 2770 "$config_dir"
 
-  usermod -a -G "$shared_group" "$user" || true
+  usermod -a -G "$shared_group" "$user"
   if id "$WEB_USER" >/dev/null 2>&1; then
-    usermod -a -G "$shared_group" "$WEB_USER" || true
+    usermod -a -G "$shared_group" "$WEB_USER"
   fi
 
   if command -v setfacl >/dev/null 2>&1; then
@@ -492,23 +493,21 @@ WantedBy=multi-user.target
 SERVICE
 }
 
-restart_if_present() {
-  local unit="$1"
-  if systemctl list-unit-files --type=service --no-legend 2>/dev/null | awk '{print $1}' | grep -Fxq "$unit"; then
-    systemctl restart "$unit" || true
+restart_active_web_services() {
+  local services unit failed=0
+  if ! services="$(systemctl list-units --type=service --state=active,reloading --plain --no-legend --no-pager \
+      apache2.service nginx.service 'php*-fpm.service')"; then
+    echo "Die laufenden Webdienste konnten nicht ermittelt werden." >&2
+    return 1
   fi
-}
-
-maybe_restart_webstack() {
-  local unit=""
-
-  restart_if_present "apache2.service"
-  restart_if_present "nginx.service"
-
-  while IFS= read -r unit; do
-    [ -n "$unit" ] || continue
-    systemctl restart "$unit" || true
-  done < <(systemctl list-unit-files --type=service --no-legend 2>/dev/null | awk '/^php[0-9.]+-fpm\.service/ {print $1}')
+  while read -r unit _; do
+    [[ -n "$unit" ]] || continue
+    if ! systemctl try-restart "$unit"; then
+      echo "Neustart von $unit fehlgeschlagen. Bitte den Dienststatus prüfen." >&2
+      failed=1
+    fi
+  done <<< "$services"
+  return "$failed"
 }
 
 show_summary() {
@@ -735,7 +734,7 @@ main() {
     systemctl enable --now "$service_name"
   fi
 
-  maybe_restart_webstack
+  restart_active_web_services
 
   show_summary "$target_user" "$shared_group" "$source_host" "$source_user" "$source_port" "$base_dir" "$inbox_dir" "$config_dir" "$app_target" "$sms_lib_target" "$sms_config_target" "$sms_credentials" "$fetch_script" "$service_name" "${ssh_key}.pub" "$decrypt_public" "$app_admin_password" "$sms_config_password"
 }
