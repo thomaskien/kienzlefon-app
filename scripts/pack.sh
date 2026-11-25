@@ -19,12 +19,17 @@ root = Path.cwd()
 output = Path(sys.argv[1])
 files = """
 scripts/pack.sh
+scripts/asterisk-nebenstellen.py
+scripts/telefonie-einrichten.py
+config/kienzlefon-app-asterisk.service
 docs/INSTALLER.md
 docs/APP-UPDATE.md
 zielserver-vorbereiten-v1.8.sh
 quellserver-vorbereiten-nginx-v1.2.sh
 quellserver-benutzer-erzeugen-v1.8.sh
 kienzlefon-app-update-v1.0.sh
+telepraxis-rufnummern.service
+telepraxis-rufnummern.timer
 telepraxis_fetch_and_decrypt.sh
 telepraxis-audio-delivery.py
 telepraxis-receive.php

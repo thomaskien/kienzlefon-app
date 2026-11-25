@@ -1,0 +1,8 @@
+[Unit]
+Description=Neue und offene Telepraxis-Vorgänge auflösen
+[Timer]
+OnBootSec=5s
+OnUnitInactiveSec=15s
+AccuracySec=1s
+[Install]
+WantedBy=timers.target

@@ -21,12 +21,14 @@ WEB = {
     "telepraxis-telephony.php", "telepraxis-telephony.js", "telepraxis-telephony-schema.json",
 }
 PAYLOAD = WEB | {
-    TARGET, CHANNEL, UPDATER, "quellserver-vorbereiten-nginx-v1.2.sh", "telepraxis_fetch_and_decrypt.sh",
+    TARGET, CHANNEL, UPDATER, "telepraxis-rufnummern.service", "telepraxis-rufnummern.timer",
+    "quellserver-vorbereiten-nginx-v1.2.sh", "telepraxis_fetch_and_decrypt.sh",
     "telepraxis-audio-delivery.py", "telepraxis-receive.php", "kontakt.php", "telepraxis-sms-worker.php", "telepraxis-sms-inspect.php",
     "telepraxis-sms-journal.php", "telepraxis-sms-receive.php", "telepraxis-sms-receive-store.php",
     "config/sms-queue-web.example.json", "config/sms-queue-worker.example.json",
     "config/telephony-config.example.php", "config/telepraxis-sms-worker.service",
-    "scripts/pack.sh", "docs/INSTALLER.md", "docs/APP-UPDATE.md",
+    "scripts/pack.sh", "scripts/telefonie-einrichten.py", "scripts/asterisk-nebenstellen.py",
+    "config/kienzlefon-app-asterisk.service", "docs/INSTALLER.md", "docs/APP-UPDATE.md",
 }
 
 # Run the normal installer main with OS accounts, packages and services simulated.
@@ -272,17 +274,20 @@ class AppPackageTests(unittest.TestCase):
         self.assertEqual({p.name for p in (self.host / "web").iterdir()}, WEB)
         self.assertIn(str(base / "inbox"), (self.host / "web/telepraxis-app.php").read_text())
         self.assertFalse((self.host / "bin").exists())
-        self.assertEqual(list((self.host / "units").iterdir()), [])
+        self.assertEqual({unit.name for unit in (self.host / "units").iterdir()},
+                         {"telepraxis-rufnummern.service", "telepraxis-rufnummern.timer"})
         events = (self.host / "events").read_text()
         self.assertIn("packages 0", events)
-        for action in ("daemon-reload", "enable --now", "curl", "wget"):
+        self.assertIn("enable --now telepraxis-rufnummern.timer", events)
+        for action in ("enable --now telepraxis-fetch", "curl", "wget"):
             self.assertNotIn(action, events)
 
     def test_no_fetch_option_skips_remote_setup_and_keeps_web_dependencies(self):
         result = self.setup_host(TARGET, "--source-dir", self.source, "--user", "praxis", "--no-fetch",
                                  stdin="TestApp\nTestSMS\n")
         self.assertNotIn("Auswahl", result.stdout + result.stderr)
-        self.assertEqual(list((self.host / "units").iterdir()), [])
+        self.assertEqual({unit.name for unit in (self.host / "units").iterdir()},
+                         {"telepraxis-rufnummern.service", "telepraxis-rufnummern.timer"})
         self.assertFalse((self.host / "srv/praxis/.ssh").exists())
         # Simulate only apt itself, exercising the installer's actual package selections.
         probe = 'source "$1"; apt-get() { echo "$*"; }; install_php_extension_packages "$2"'
@@ -324,6 +329,7 @@ case "$1" in
       done
     done < "$SANDBOX/services"
     ;;
+  daemon-reload|enable) exit 0 ;;
   try-restart) [[ ! -e "$SANDBOX/fail-$2" ]] ;;
   *) exit 2 ;;
 esac
@@ -378,7 +384,8 @@ esac
         public_input = ((base / ".ssh/telepraxis_fetch_key.pub").read_text()
                         + (base / "telepraxis_decrypt_public.pem").read_text())
         self.setup_host(standalone / CHANNEL, upstream=self.source, stdin="abruf1\n" + public_input + "A\n")
-        self.assertEqual((self.host / "events").read_text().splitlines().count("curl"), len(WEB) + 4)
+        # Web files, two lookup units, fetch script, audio helper and two receiver templates.
+        self.assertEqual((self.host / "events").read_text().splitlines().count("curl"), len(WEB) + 6)
         self.assertTrue((self.host / "web/telepraxis-app.php").is_file())
         self.assertTrue((self.host / "web/telepraxis-receive-abruf1.php").is_file())
         self.assertTrue((self.host / "web/kontakt-abruf1.php").is_file())

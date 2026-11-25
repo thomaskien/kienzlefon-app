@@ -30,7 +30,10 @@ const { randomBytes } = require('node:crypto');
         const entry = {
             received_at: '2026-10-12T09:00:00+02:00',
             payload: {typ: 'rueckruf_details', vorname: 'Erika', nachname: 'Beispiel', telefon: '+493055501111', id: '+493055501112', grund: 'Bitte um Rückruf.', zusammenfassung: 'Synthetischer Testvorgang.'},
-            app: {status: 'in_bearbeitung', status_updated_benutzer: 'Julia', status_updated_arbeitsplatz: 'anderer-platz', comments: []},
+            app: {rufnummernaufloesung: [{nummer:'+493055501111', status:'mehrere_treffer', treffer:[
+                {patientennummer:55, name:'Erika Marie von der Weide', vorname:'Erika Marie', nachname:'von der Weide', geburtsdatum:'1980-03-02'},
+                {patientennummer:56, name:'Leo Muster', vorname:'Leo', nachname:'Muster', geburtsdatum:null}]}],
+                status: 'in_bearbeitung', status_updated_benutzer: 'Julia', status_updated_arbeitsplatz: 'anderer-platz', comments: []},
         };
         fs.writeFileSync(path.join(site, 'inbox', 'example.json'), JSON.stringify(entry));
         fs.writeFileSync(path.join(site, 'inbox', 'other.json'), JSON.stringify({...entry, app: {...entry.app, status_updated_benutzer: 'Anna', status_updated_arbeitsplatz: 'empfang-1'}}));
@@ -39,18 +42,64 @@ const { randomBytes } = require('node:crypto');
         const token = randomBytes(32).toString('hex');
         const tokenFile = path.join(config, 'token');
         fs.writeFileSync(tokenFile, token, {mode: 0o600});
+        const deskToken=randomBytes(32).toString('hex'), lookupToken=randomBytes(32).toString('hex');
+        const workOrders=[], lookupNumbers=[];
+        let activeJob=false, aiEnabled=false, lookupDown=false;
         let overviewName = 'overview-current';
-        let commands = [], confirm = false, lookups = [];
+        let commands = [], confirm = false, lookups = [], answered = false;
+        let paired = false, normal203 = true, revision203 = 17;
         middleware = http.createServer(async (req, res) => {
             res.setHeader('Content-Type', 'application/json');
+            if (req.url?.startsWith('/api/v1/practice/')) {
+                const action=req.url.split('/').at(-1);
+                if (req.headers.authorization !== 'Bearer '+(action==='lookup'?lookupToken:deskToken)) {res.writeHead(401).end('{}');return;}
+                const chunks=[]; for await (const chunk of req) chunks.push(chunk);
+                const input=JSON.parse(Buffer.concat(chunks));
+                if (action==='lookup') {
+                    if (input.abfrage === 'namensfelder') { res.end(JSON.stringify({namensfelder:true})); return; }
+                    lookupNumbers.push(input.number);
+                    if (lookupDown && input.number==='+493055502222') { res.writeHead(503).end('{}'); return; }
+                    res.end(JSON.stringify({status:'ambiguous',namensfelder:true,treffer:[
+                        {patientennummer:55,name:'Erika Muster',vorname:'Erika',nachname:'Muster',geburtsdatum:'1980-03-02'},
+                        {patientennummer:57,name:'Leo Muster',vorname:'Leo',nachname:'Muster',geburtsdatum:null}]}));
+                } else if(action==='desk') {
+                    res.end(JSON.stringify({client_id:input.client_id,extension:'201',calls:[
+                        {id:'demo-call',state:'connected',name:'Test Anruf',number:'03055501',can_transfer:!activeJob,
+                            treffer:[{patientennummer:42,name:'Test Anruf',vorname:'Test',nachname:'Anruf'}]},
+                        {id:'incoming',state:answered?'connected':'ringing',name:'',number:'03055502',can_transfer:false,
+                            treffer:[{patientennummer:55,name:'Erika Muster',vorname:'Erika',nachname:'Muster',geburtsdatum:'1980-03-02'},
+                                {patientennummer:57,name:'Leo Muster',vorname:'Leo',nachname:'Muster'}, {patientennummer:58,name:'Mia Muster',vorname:'Mia',nachname:'Muster'}]},
+                        {id:'unknown-call',state:answered?'connected':'ringing',name:'',number:'01701234567',treffer:[],can_transfer:false}],
+                        transfers:activeJob?[{request_id:'test-job',phase:'consulting',target:'202',mode:'attended',can_cancel:true,can_complete:true}]:[]}));
+                } else {
+                    workOrders.push(input);
+                    activeJob=action==='transfer' && input.mode==='attended';
+                    res.end(JSON.stringify({message:'Testauftrag angenommen.'}));
+                }
+                return;
+            }
             if (req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401).end('{}'); return; }
+            if (paired && req.url === '/api/v1/extension-routing/workplaces') {
+                res.end(JSON.stringify({schema_version:1, pbx_id:'praxis-a', mode:'all', client_ids:[], remote_enabled:true}));
+                return;
+            }
             if (req.url === '/api/v1/telephony/overview') {
                 const overview = fixture(overviewName);
+                overview.ai_enabled=aiEnabled;
+                if (aiEnabled) overview.live_counters.ai=0;
                 overview.generated_at = new Date().toISOString();
                 overview.call_statistics.today.date = new Intl.DateTimeFormat('en-CA', {timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
                 if (confirm) {
                     overview.routing_control.revision = overview.routing_control.revision.replace(/:17$/, ':18');
                     overview.extensions[0].routing.normal = false;
+                }
+                if (paired) {
+                    overview.routing_control.revision = overview.routing_control.revision.replace(/:\d+$/, ':' + revision203);
+                    const ext = structuredClone(overview.extensions[0]);
+                    ext.id = '203';
+                    ext.routing.normal = normal203;
+                    ext.routing.permissions.normal = {can_enable:true, can_disable:true, enable_reason:null, disable_reason:null};
+                    overview.extensions.push(ext);
                 }
                 overview.internal_channel = 'server-side-details';
                 res.end(JSON.stringify(overview));
@@ -61,6 +110,17 @@ const { randomBytes } = require('node:crypto');
                 for await (const chunk of req) chunks.push(chunk);
                 const command = JSON.parse(Buffer.concat(chunks));
                 commands.push(command);
+                if (paired) {
+                    assert.equal(command.client_id, req.headers['x-kienzlefon-workplace']);
+                    assert.equal(req.headers['x-kienzlefon-pbx-id'], 'praxis-a');
+                    assert.equal(command.extension, '203');
+                    normal203 = command.member;
+                    revision203++;
+                    const job = {...fixture('request-applied').request, ...command,
+                        result_revision:command.expected_revision.replace(/:\d+$/, ':' + revision203)};
+                    res.end(JSON.stringify({request:job, error:null}));
+                    return;
+                }
                 res.writeHead(202).end(JSON.stringify({request: {...fixture('request-accepted').request, ...command}, error: null}));
                 return;
             }
@@ -109,6 +169,11 @@ const { randomBytes } = require('node:crypto');
             await page.waitForFunction(() => document.title.startsWith('Neu:'));
         };
         await ready(base);
+        await page.waitForFunction(() => document.getElementById('telephony-toggle').checked);
+        await page.evaluate(() => localStorage.setItem('kienzlefon_telephony_enabled', '0'));
+        await ready(base);
+        assert.equal(await page.locator('#telephony-toggle').isChecked(), false);
+        await page.evaluate(() => localStorage.removeItem('kienzlefon_telephony_enabled'));
         // Upgrade from the former single-field identity must not choose a phone.
         await page.evaluate(() => localStorage.setItem('telepraxis_workplace', 'AltBearbeiter'));
         await ready(base);
@@ -130,21 +195,51 @@ const { randomBytes } = require('node:crypto');
         assert.equal(await page.locator('#place-setup-row').isVisible(), false);
         assert.equal(await page.locator('#left-column article').count(), 1);
         assert.equal(await page.locator('#middle-body article').count(), 1);
+        for (const width of [390, 1600]) {
+            await page.setViewportSize({width, height:1000});
+            for (const column of ['#middle-body', '#left-column']) {
+                const layout = await page.locator(column + ' article').evaluate(card => {
+                    const tag = card.querySelector('.category-tag').getBoundingClientRect();
+                    const box = card.querySelector('.card-header-box').getBoundingClientRect();
+                    const select = card.querySelector('.selection-row')?.getBoundingClientRect();
+                    return {above:tag.bottom <= box.top, right:Math.abs(tag.right - box.right),
+                        beside:select && select.right <= tag.left && select.top < tag.bottom && select.bottom > tag.top};
+                });
+                assert.ok(layout.above && layout.right <= 1, `Kategorie oben rechts in ${column} bei ${width}px`);
+                if (column === '#middle-body') assert.ok(layout.beside, 'Auswählen und Kategorie teilen eine Zeile');
+                const contents = page.locator(column + ' article .header-matches');
+                const name = contents.locator('.patient-label').first();
+                assert.equal(await name.textContent(), 'von der Weide, Erika Marie');
+                assert.equal(await name.evaluate(el => {
+                    const range = document.createRange();
+                    range.selectNodeContents(el);
+                    return range.getClientRects().length;
+                }), 1);
+                assert.ok(await contents.locator('.phone-digits').evaluate(el => el.scrollWidth <= el.clientWidth),
+                    'Die vollständige Nummer passt gegebenenfalls in die nächste Zeile');
+            }
+        }
         assert.match(await page.locator('#left-column').textContent(), /bei Julia/);
         const call = new URL(await page.locator('#left-column .card-header-box a.phone-link').getAttribute('href'));
-        const record = new URL(await page.locator('#left-column .card-header-box a.btn-record').getAttribute('href'));
         assert.equal(call.pathname, '/waehlen');
-        assert.equal(record.pathname, '/patient-oeffnen');
-        for (const url of [call, record]) {
-            assert.equal(url.searchParams.get('client_id'), 'empfang-1');
-            assert.equal(url.searchParams.get('telefon'), '+493055501111');
-            assert.ok(url.href.includes('%2B493055501111'));
-        }
+        assert.equal(call.searchParams.get('client_id'), 'empfang-1');
+        assert.equal(call.searchParams.get('telefon'), '+493055501111');
         assert.equal(call.searchParams.get('sofort'), '1');
-        assert.equal(record.searchParams.has('sofort'), false);
-        assert.equal(record.searchParams.get('auto_close'), '1');
-        assert.equal(call.searchParams.has('auto_close'), false);
-        assert.equal(await page.locator('#left-column .card-header-box .btn-record').textContent(), 'Akte');
+        assert.equal(call.searchParams.get('auto_close'), '1');
+        assert.equal(await page.locator('.btn-record').count(), 0);
+        assert.equal(await page.locator('#left-column .patient-hit').count(), 2);
+        const phoneButton = page.locator('#left-column .header-matches .phone-link');
+        const phoneTip = page.locator('#phone-tooltip');
+        await phoneButton.hover();
+        assert.equal(await phoneTip.isVisible(),false);
+        const veryNarrow = await page.addStyleTag({content:'#left-column .header-matches {width:72px}'});
+        await phoneButton.hover();
+        await phoneTip.waitFor();
+        assert.equal(await phoneTip.textContent(), await phoneButton.textContent());
+        const tipBox = await phoneTip.boundingBox(), phoneBox = await phoneButton.boundingBox();
+        assert.ok(tipBox.y + tipBox.height <= phoneBox.y);
+        await veryNarrow.evaluate(el => el.remove());
+        await phoneTip.waitFor({state:'hidden'});
         // Polling must preserve the open comment, draft, focus and selection.
         await page.locator('#left-column [data-toggle-comment]').click();
         const editor = page.locator('#left-column textarea[data-comment-input]');
@@ -155,7 +250,7 @@ const { randomBytes } = require('node:crypto');
         assert.deepEqual(await editor.evaluate(el => [el.selectionStart, el.selectionEnd]), [2, 7]);
         // New and completed table UI continues working, with a compact record link.
         await page.locator('[data-view-target="middle"][data-view-mode="table"]').click();
-        assert.equal(await page.locator('#middle-body .btn-record').count(), 1);
+        assert.equal(await page.locator('#middle-body .patient-hit').count(), 2);
         const middleRowButtons = page.locator('#middle-body .table-actions-middle button');
         assert.deepEqual(await middleRowButtons.allTextContents(), ['Dringend', 'Bearbeiten']);
         assert.equal(await middleRowButtons.nth(1).getAttribute('data-status'), 'in_bearbeitung');
@@ -163,6 +258,10 @@ const { randomBytes } = require('node:crypto');
         // Bookmarks use drafts, allowing one field to be deliberately cleared.
         await page.locator('#menu-toggle-btn').click();
         await page.locator('#bookmark-link-btn').click();
+        assert.equal(await page.locator('label[for="workplace-input-menu"]').textContent(), 'Telefon');
+        assert.equal(await page.locator('label[for="workplace-input-setup"]').textContent(), 'Telefon');
+        assert.match(await page.locator('.menu-heading').first().textContent(), /Benutzer und Telefon/);
+        assert.match(await page.locator('[data-summary-key="platz"]').textContent(), /Telefon:\s*empfang-1/);
         const fullBookmark = new URL(await page.evaluate(() => navigator.clipboard.readText()));
         assert.equal(fullBookmark.searchParams.get('benutzer'), 'Julia');
         assert.equal(fullBookmark.searchParams.get('arbeitsplatz'), 'empfang-1');
@@ -180,7 +279,7 @@ const { randomBytes } = require('node:crypto');
         assert.equal(await page.locator('#workplace-input-setup').isVisible(), true);
         assert.equal(await page.locator('.phone-actions a').count(), 0);
         await page.locator('[data-t2med-unavailable]').first().click();
-        assert.match(await page.locator('#message').textContent(), /Platz/);
+        assert.match(await page.locator('#message').textContent(), /Feld „Telefon“/);
         await page.locator('#menu-toggle-btn').click();
         await page.locator('#bookmark-link-btn').click();
         copied = new URL(await page.evaluate(() => navigator.clipboard.readText()));
@@ -351,11 +450,7 @@ const { randomBytes } = require('node:crypto');
         assert.equal(readStatus.status(), 200, statusText);
         assert.equal(JSON.parse(statusText).internal_channel, undefined);
         await page.locator('#menu-toggle-btn').click();
-        const [boot] = await Promise.all([
-            page.waitForResponse(response => response.url().includes('action=bootstrap')),
-            page.locator('#telephony-toggle').check(),
-        ]);
-        assert.equal(boot.status(), 200, await boot.text());
+        await page.waitForFunction(() => document.getElementById('telephony-toggle').checked);
         await page.locator('#menu-toggle-btn').click();
         await page.locator('#telephony-panel summary').click();
         const normal = page.getByRole('checkbox', {name: 'Normal 201'});
@@ -383,20 +478,185 @@ const { randomBytes } = require('node:crypto');
         assert.equal(commands[0].member, false);
         assert.ok(lookups.every(url => url.endsWith(commands[0].request_id)));
         confirm = false;
+        const legacyConfig = fs.readFileSync(configFile, 'utf8');
+        paired = true;
+        fs.writeFileSync(configFile, `<?php return ['enabled'=>true,'pbx_id'=>'praxis-a','clients'=>[],
+            'middleware_url'=>'http://127.0.0.1:${middleware.address().port}','token_file'=>__DIR__.'/token'];`);
+        await page.waitForResponse(async res => res.url().includes('action=routing-access') && Boolean((await res.json()).client_id));
+        const normalPaired = page.getByRole('checkbox', {name:'Normal 203'});
+        for (const expected of [false, true]) {
+            await normalPaired.click();
+            await page.waitForFunction(value => {
+                const box = document.querySelector('input[data-extension="203"][data-route="normal"]');
+                return box && !box.disabled && box.checked === value;
+            }, expected);
+            assert.equal(commands.at(-1).member, expected);
+            assert.equal(await page.getByRole('checkbox', {name:'ROT 203'}).isDisabled(), true);
+        }
+        paired = false;
+        fs.writeFileSync(configFile, legacyConfig);
         overviewName = 'overview-statistics-gap';
-        await page.waitForFunction(() => document.querySelector('[data-summary-key="heute"] strong')?.textContent.startsWith('≈'));
-        overviewName = 'overview-control-unavailable-statistics-current';
-        await page.waitForFunction(() => document.querySelector('[data-summary-key="warte"] strong')?.textContent === '—');
+        await page.waitForResponse(r => r.url().includes('action=status'));
         assert.match(await page.locator('[data-summary-key="heute"] strong').textContent(), /^\d+$/);
-        assert.ok(await page.locator('.btn-record').count());
+        overviewName = 'overview-control-unavailable-statistics-current';
+        await page.waitForFunction(() => !document.querySelector('[data-summary-key="warte"]'));
+        assert.match(await page.locator('[data-summary-key="heute"] strong').textContent(), /^\d+$/);
+        assert.ok(await page.locator('.patient-hit').count());
         await page.locator('#menu-toggle-btn').click();
         await page.locator('#t2med-patient-toggle').uncheck();
-        assert.equal(await page.locator('.btn-record').count(), 0);
+        assert.equal(await page.locator('.patient-hit').count(), 0);
         assert.equal(await page.locator('#telephony-toggle').isChecked(), true);
         await page.locator('#menu-toggle-btn').click();
         await page.locator('#telephony-panel summary').click();
         for (const width of [2400, 1600, 1000, 600, 390, 320, 2400]) await checkHeader(width);
-        assert.equal(await page.locator('.telephony-counter:visible').count(), 4);
+        assert.equal(await page.locator('.telephony-counter:visible').count(), 1);
+
+        // Install the optional scoped credentials into this isolated fixture.
+        fs.writeFileSync(tokenFile+'.workplace', deskToken, {mode:0o600});
+        fs.writeFileSync(tokenFile+'.lookup', lookupToken, {mode:0o600});
+        const inputRecord = {payload:{name:'Angesagter Name', telefon:'030 55502222',anrufer_id:'+493055502222'}, app:{status:'neu'}};
+        const inputFile = path.join(site,'inbox','lookup-demo.json');
+        fs.writeFileSync(inputFile,JSON.stringify(inputRecord));
+        const closedFile = path.join(site,'inbox','lookup-closed.json');
+        fs.writeFileSync(closedFile, JSON.stringify({...inputRecord, app:{status:'abgeschlossen'}}));
+        const legacyFile = path.join(site,'inbox','lookup-legacy.json');
+        const oldHit = {patientennummer:57,name:'Leo Muster',geburtsdatum:null};
+        fs.writeFileSync(legacyFile,JSON.stringify({payload:{telefon:'03055503333'},app:{status:'abgeschlossen',
+            rufnummernaufloesung:[{nummer:'+493055503333',status:'ein_treffer',treffer:[oldHit],stand:'2026-11-20'}]}}));
+        const runLookup = () => new Promise((resolve,reject) => require('node:child_process').execFile('php',
+            [path.join(site,'telepraxis-app.php'),'--resolve-inbox'], {env:{...process.env,KIENZLEFON_TELEPHONY_CONFIG:configFile}},
+            error => error ? reject(error) : resolve()));
+        lookupDown=true;
+        await assert.rejects(runLookup);
+        const pending = JSON.parse(fs.readFileSync(inputFile));
+        assert.equal(pending.app.rufnummernaufloesung[0].status,'ausstehend');
+        pending.app.comments=[{text:'Zwischenzeitlich ergänzt'}];
+        fs.writeFileSync(inputFile,JSON.stringify(pending));
+        lookupDown=false;
+        await runLookup();
+        await runLookup();
+        assert.equal(lookupNumbers.filter(n => n === '+493055502222').length, 2);
+        const saved = JSON.parse(fs.readFileSync(inputFile));
+        assert.equal(saved.payload.name,'Angesagter Name');
+        assert.equal(saved.app.comments[0].text,'Zwischenzeitlich ergänzt');
+        assert.deepEqual(saved.app.rufnummernaufloesung[0].nummernfelder,['telefon','anrufer_id']);
+        assert.equal(saved.app.rufnummernaufloesung[0].treffer.length,2);
+        const [legacy] = JSON.parse(fs.readFileSync(legacyFile)).app.rufnummernaufloesung;
+        assert.equal(lookupNumbers.filter(n=>n==='+493055503333').length,1);
+        assert.deepEqual(legacy.treffer,[{...oldHit,vorname:'Leo',nachname:'Muster'}]);
+        assert.equal(legacy.stand,'2026-11-20');
+        assert.equal(JSON.parse(fs.readFileSync(closedFile)).app.rufnummernaufloesung,undefined);
+        overviewName='overview-current';
+        await page.evaluate(() => {localStorage.setItem('kienzlefon_t2med_patient_enabled','1'); localStorage.setItem('kienzlefon_telephony_enabled','1');});
+        await ready(base+'?benutzer=Julia&arbeitsplatz=empfang-1');
+        assert.equal(await page.locator('[data-summary-key="ai"]').count(),0);
+        aiEnabled=true;
+        await page.waitForFunction(() => document.querySelector('[data-summary-key="ai"] strong')?.textContent === '0');
+        aiEnabled=false;
+        await page.waitForFunction(() => !document.querySelector('[data-summary-key="ai"]'));
+        const announce = page.locator('[data-entry-file="lookup-demo.json"]');
+        await announce.locator('[data-patient="57"]').click();
+        await page.waitForFunction(() => document.querySelector('#message').textContent.includes('Testauftrag'));
+        assert.equal(workOrders.at(-1).patient_number,57);
+        assert.equal(workOrders.at(-1).client_id,'empfang-1');
+        await page.keyboard.press('t');
+        await page.waitForSelector('#telephony-panel[open] kbd');
+        await page.keyboard.press('t');
+        assert.equal(await page.locator('#telephony-panel').evaluate(el => el.open), false);
+        const orderCount = workOrders.length;
+        await page.keyboard.press('2');
+        await page.keyboard.press('t');
+        await page.waitForSelector('#telephony-panel[open] kbd');
+        const dialResponse = page.waitForResponse(r => r.url().includes('action=dial'));
+        await page.keyboard.press('2');
+        await dialResponse;
+        assert.equal(workOrders.length, orderCount + 1);
+        assert.equal(workOrders.at(-1).number,'202');
+        assert.equal(context.pages().length,1);
+        await page.keyboard.press('t');
+        assert.equal(await page.locator('#telephony-panel').evaluate(el => el.open), false);
+        await page.locator('#menu-toggle-btn').click();
+        await page.locator('#workplace-input-menu').focus();
+        await page.keyboard.type('t');
+        assert.equal(await page.locator('#telephony-panel').evaluate(e=>e.open),false);
+        await page.locator('#workplace-input-menu').fill('empfang-1');
+        await page.locator('#menu-toggle-btn').click();
+        await page.setViewportSize({width:390, height:900});
+        await page.locator('#telephony-panel summary').click();
+        await page.locator('#menu-toggle-btn').click();
+        const overlay = await page.locator('#header-menu').evaluate(menu => {
+            const bounds = menu.getBoundingClientRect();
+            for (const card of document.querySelectorAll('.telephony-extension')) {
+                const rect = card.getBoundingClientRect();
+                const left = Math.max(bounds.left, rect.left), right = Math.min(bounds.right, rect.right);
+                const top = Math.max(bounds.top, rect.top), bottom = Math.min(bounds.bottom, rect.bottom);
+                if (right - left > 12 && bottom - top > 12) {
+                    return menu.contains(document.elementFromPoint((left + right) / 2, (top + bottom) / 2));
+                }
+            }
+            return false;
+        });
+        assert.ok(overlay, 'Das Hamburger-Menü liegt vor den geöffneten Nebenstellen');
+        await page.locator('#user-input-menu').click();
+        assert.equal(await page.locator('#user-input-menu').evaluate(input => input === document.activeElement), true);
+        await page.locator('#menu-toggle-btn').click();
+        await page.setViewportSize({width:1600, height:1000});
+        const incoming = page.locator('[data-call-id="incoming"]');
+        const patientNames = incoming.locator('button[data-patient] > span:first-child');
+        await incoming.locator('[data-patient="58"]').waitFor();
+        assert.deepEqual(await patientNames.allTextContents(), ['Muster, Erika','Muster, Leo','Muster, Mia']);
+        assert.equal(await incoming.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(255, 230, 155)');
+        assert.match(await incoming.innerText(), /Muster, Erika\s+oder\s+Muster, Leo\s+oder\s+Muster, Mia\s+\(03055502\)/);
+        const unknown = page.locator('[data-call-id="unknown-call"]');
+        assert.equal((await unknown.innerText()).trim().replace(/\s+/g,' '), 'Klingelt 01701234567');
+        assert.ok(await unknown.evaluate(el => {
+            const number = el.querySelector('.call-number').getBoundingClientRect();
+            return number.top < el.querySelector('b').getBoundingClientRect().bottom;
+        }));
+        assert.equal(await unknown.locator('button').count(),0);
+        assert.equal(await incoming.locator('[data-menu]').count(), 0);
+        const beforePatient = workOrders.length;
+        await Promise.all([page.waitForResponse(r => r.url().includes('action=patient')),
+            incoming.getByRole('button',{name:'Muster, Leo aus T2med'}).click()]);
+        assert.equal(workOrders.at(-1).patient_number,57);
+        assert.equal(workOrders.at(-1).number,'03055502');
+        answered = true;
+        await page.locator('[data-call-id="incoming"].connected').waitFor();
+        assert.equal(await incoming.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(206, 241, 213)');
+        assert.equal(await page.locator('[data-call-id="incoming"]').count(),1);
+        assert.equal((await unknown.innerText()).trim().replace(/\s+/g,' '), 'Im Gespräch 01701234567');
+        assert.match(await incoming.innerText(), /\(03055502\)/);
+        assert.deepEqual(await patientNames.allTextContents(), ['Muster, Erika','Muster, Leo','Muster, Mia']);
+        const erika = incoming.getByRole('button',{name:'Muster, Erika, 2.3.1980 aus T2med',exact:true});
+        await erika.focus();
+        await Promise.all([page.waitForResponse(r => r.url().includes('action=patient')), erika.press('Enter')]);
+        assert.equal(workOrders.length, beforePatient + 2);
+        assert.equal(workOrders.at(-1).patient_number,55);
+        assert.equal(workOrders.at(-1).client_id,'empfang-1');
+        assert.equal(workOrders.at(-1).number,'03055502');
+        assert.equal(context.pages().length,1);
+        await page.getByRole('button',{name:'Vermitteln',exact:true}).click();
+        const target = page.locator('select[data-target]');
+        assert.equal(await page.getByRole('button',{name:'Direkt durchstellen'}).isDisabled(),true);
+        await target.selectOption('202');
+        await page.getByRole('button',{name:'Rückfrage starten'}).click();
+        await page.getByRole('button',{name:'Zurück zum Anrufer'}).click();
+        await page.waitForResponse(r=>r.url().includes('action=cancel'));
+        assert.equal(workOrders.at(-1).transfer_id,'test-job');
+        await page.getByRole('button',{name:'Vermitteln',exact:true}).click();
+        await target.selectOption('202');
+        await page.getByRole('button',{name:'Direkt durchstellen'}).click();
+        await page.waitForResponse(r=>r.url().includes('action=transfer'));
+        assert.equal(workOrders.at(-1).mode,'blind');
+        await page.locator('.middle-column .area-open').focus();
+        await page.keyboard.press('Tab');
+        assert.equal(await page.locator('.right-column .area-open').evaluate(e=>e===document.activeElement),true);
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('Enter');
+        const selectedBox = page.locator('#middle-body input[type=checkbox]').first();
+        assert.equal(await selectedBox.evaluate(e=>e===document.activeElement),true);
+        await page.keyboard.press('Space');
+        assert.equal(await selectedBox.isChecked(),true);
 
         assert.deepEqual(errors, []);
         assert.deepEqual(external, [], 'No external requests may be made');

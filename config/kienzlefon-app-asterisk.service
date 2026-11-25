@@ -1,0 +1,26 @@
+[Unit]
+Description=Lokale PJSIP-Nebenstellen für die Kienzlefon-App
+After=asterisk.service
+
+[Service]
+ExecStart=/usr/bin/python3 -I /usr/local/lib/kienzlefon-app/asterisk-nebenstellen.py
+User=@SOCKET_UID@
+Group=@SOCKET_GID@
+RuntimeDirectory=kienzlefon-app-asterisk
+RuntimeDirectoryMode=0755
+UMask=0022
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

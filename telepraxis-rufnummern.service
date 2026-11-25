@@ -1,0 +1,9 @@
+[Unit]
+Description=Offene Telepraxis-Rufnummern mit T2med abgleichen
+ConditionPathExists=/etc/kienzlefon-app/telephony-config.php
+[Service]
+Type=oneshot
+User=www-data
+UMask=0007
+NoNewPrivileges=yes
+ExecStart=/usr/bin/php "/var/www/html/telepraxis-app.php" --resolve-inbox

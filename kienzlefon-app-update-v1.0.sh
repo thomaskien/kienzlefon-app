@@ -3,6 +3,7 @@
 #
 # Version 1.0 (2026-09-29)
 # Changelog:
+# - 24.11.2026: Fehlende Rufnummern-Units bei App-Updates nachrüsten und den Timer aktivieren.
 # - 19.11.2026: Beim Aufruf aus dem Modul die mitgelieferte Paketquelle verwenden.
 # - 19.11.2026: Vorhandene Abrufkanäle mit Audio-Helfer, Konfigurationserhalt und Rollback aktualisieren.
 # - SMS-Empfangsmodule im selben Update wie Worker und Webapp pruefen und installieren.
@@ -51,6 +52,10 @@ import zipfile
 from pathlib import Path
 
 VERSION = "1.0"
+LOOKUP_SERVICE = "telepraxis-rufnummern.service"
+LOOKUP_TIMER = "telepraxis-rufnummern.timer"
+LOOKUP_UNITS = (LOOKUP_SERVICE, LOOKUP_TIMER)
+SYSTEMD_DIR = Path("/etc/systemd/system")
 REPOSITORY = "thomaskien/IONOS_AI_Receptionist_Interface_Arztpraxis"
 WEB_FILES = (
     "telepraxis-app.php",
@@ -355,6 +360,8 @@ def read_local_source(source_dir: Path, needed: set[str]) -> dict[str, bytes]:
     result: dict[str, bytes] = {}
     for name in sorted(needed):
         path = source_dir / name
+        if name in LOOKUP_UNITS and not path.exists() and not path.is_symlink():
+            continue  # Older app sources can predate the lookup job.
         require_regular_file(path, "Quelldatei")
         try:
             result[name] = path.read_bytes()
@@ -416,10 +423,10 @@ def download_source(ref: str, needed: set[str]) -> dict[str, bytes]:
         raise
     except (zipfile.BadZipFile, OSError, RuntimeError) as exc:
         raise UpdateError("Das geladene Quellarchiv ist ungueltig.") from exc
-    missing = sorted(needed - selected.keys())
+    missing = sorted(needed - selected.keys() - set(LOOKUP_UNITS))
     if missing:
         raise UpdateError("Im Quellarchiv fehlen erforderliche Dateien: " + ", ".join(missing))
-    return {name: selected[name][1] for name in needed}
+    return {name: data for name, (_, data) in selected.items()}
 
 
 def command_systemctl(arguments: list[str], allowed=(0,)) -> subprocess.CompletedProcess[str]:
@@ -447,6 +454,23 @@ def require_loaded_service(name: str) -> None:
     state = command_systemctl(["show", "--property=LoadState", "--value", name]).stdout.strip()
     if state != "loaded":
         raise UpdateError(f"Dienst {name} ist nicht geladen; bitte den Dienstnamen pruefen.")
+
+
+def prepare_lookup_units(source: Path, webroot: Path) -> None:
+    for name in LOOKUP_UNITS:
+        require_regular_file(source / name, "Unit für die Rufnummernauflösung")
+        (source / name).chmod(0o644)
+    # The path is one quoted systemd ExecStart argument, including literal $ and %.
+    script = str(webroot / "telepraxis-app.php")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in script):
+        raise UpdateError("Der Webroot enthält Steuerzeichen.")
+    escaped = script.replace("\\", "\\\\").replace('"', '\\"').replace("$", "$$").replace("%", "%%")
+    service = source / LOOKUP_SERVICE
+    template = service.read_text()
+    path_argument = '"/var/www/html/telepraxis-app.php"'
+    if template.count(path_argument) != 1:
+        raise UpdateError("Dienstvorlage für die Rufnummernauflösung ist unvollständig.")
+    service.write_text(template.replace(path_argument, f'"{escaped}"'))
 
 
 def stop_service(name: str) -> None:
@@ -720,6 +744,8 @@ def main() -> int:
                 raise UpdateError(f"Laufzeitabhängigkeit des Abholers fehlt: {command}")
     php = check_runtime()
     needed = set(WEB_FILES)
+    if not args.no_service:
+        needed.update(LOOKUP_UNITS)
     if fetch_scripts:
         needed.update((FETCH_TEMPLATE, FETCH_HELPER))
     if worker_dir is not None:
@@ -790,6 +816,10 @@ def main() -> int:
                 prepare_fetch(source_files / FETCH_TEMPLATE, path, prepared_fetch / path.name)
                 print(f"  Abrufkanal: {path.name}")
         print_plan(webroot, worker_dir, source_label, args.check)
+        lookup = not args.no_service and b"--resolve-inbox" in source_data["telepraxis-app.php"]
+        if lookup:
+            prepare_lookup_units(source_files, webroot)
+            print("  Rufnummernauflösung: fehlende Units ergänzen und Timer aktivieren.")
         if args.check:
             print("Pruefung erfolgreich; es wurden keine Zieldateien, Dienste oder Sicherungen veraendert.")
             return 0
@@ -797,6 +827,27 @@ def main() -> int:
         web_service: tuple[str, bool] | None = None
         worker_service: tuple[str, bool] | None = None
         fetch_service_states = []
+        lookup_missing = []
+        timer_active = timer_enabled = False
+        if lookup:
+            stack.enter_context(acquire_lock(SYSTEMD_DIR))
+            for unit in LOOKUP_UNITS:
+                state = command_systemctl(["show", "--property=LoadState", "--value", unit], allowed=(0, 4)).stdout.strip()
+                if state == "masked":
+                    print(f"  {unit} ist administrativ maskiert. Rufnummernauflösung wird übersprungen.")
+                    lookup = False
+                    lookup_missing = []
+                    break
+                if state == "not-found":
+                    path = SYSTEMD_DIR / unit
+                    if path.exists() or path.is_symlink():
+                        raise UpdateError(f"Vorhandene Unit {unit} ist in systemd nicht geladen.")
+                    lookup_missing.append(unit)
+                elif state != "loaded":
+                    raise UpdateError(f"Zustand von {unit} konnte nicht ermittelt werden.")
+            if lookup and LOOKUP_TIMER not in lookup_missing:
+                timer_active = is_service_active(LOOKUP_TIMER)
+                timer_enabled = command_systemctl(["is-enabled", LOOKUP_TIMER], allowed=(0, 1)).stdout.strip() in ("enabled", "enabled-runtime")
         if not args.no_service:
             for service in fetch_services:
                 require_loaded_service(service)
@@ -813,7 +864,7 @@ def main() -> int:
                 worker_service = (worker_name, worker_active)
 
         if args.no_service:
-            print("  Dienste: externe Wartung (--no-service); PHP, SMS-Worker und vorhandene Abholer muessen gestoppt sein.")
+            print("  Externe Wartung (--no-service) umfasst PHP, SMS-Worker, Abholer und Rufnummernauflösung.")
         else:
             for service in (web_service, worker_service, *fetch_service_states):
                 if service is not None:
@@ -836,6 +887,11 @@ def main() -> int:
         if target_fingerprints(target_paths) != initial_fingerprints:
             raise UpdateError("Installierte Dateien wurden seit der Vorbereitung geaendert; bitte erneut pruefen.")
         targets.extend((f"fetch/{path.name}", path) for path in fetch_targets)
+        for unit in lookup_missing:
+            path = SYSTEMD_DIR / unit
+            if path.exists() or path.is_symlink():
+                raise UpdateError(f"Unit {unit} wurde parallel eingerichtet.")
+            targets.append((f"systemd/{unit}", path))
         backup, manifest = create_backup(backup_base, targets)
         print(f"Sicherung: {backup}")
 
@@ -845,11 +901,16 @@ def main() -> int:
         if worker_service is not None and worker_service[1]:
             original_services.insert(0, worker_service[0])
         original_services[:0] = [service for service, active in fetch_service_states if active]
+        if timer_active:
+            original_services.insert(0, LOOKUP_TIMER)
         files_started = False
+        enabling_timer = False
 
         try:
             for service in original_services:
                 stop_service(service)
+            if lookup and LOOKUP_SERVICE not in lookup_missing:
+                stop_service(LOOKUP_SERVICE)
             if worker_service is not None and worker_service[1] and manual_worker_running(installed_worker["telepraxis-sms-worker.php"]):
                 raise UpdateError("Der SMS-Worker lief nach dem geordneten Dienststopp weiter.")
 
@@ -867,6 +928,12 @@ def main() -> int:
                 candidate = prepared_fetch / target.name
                 atomic_copy(candidate, target, install_metadata(target, candidate))
 
+            for unit in lookup_missing:
+                candidate = source_files / unit
+                atomic_copy(candidate, SYSTEMD_DIR / unit, candidate.stat())
+            if lookup_missing:
+                command_systemctl(["daemon-reload"])
+
             start_order = []
             if web_service is not None and web_service[1]:
                 start_order.append(web_service[0])
@@ -875,11 +942,24 @@ def main() -> int:
             start_order.extend(service for service, active in fetch_service_states if active)
             for service in start_order:
                 start_service(service)
+            if lookup:
+                enabling_timer = True
+                if not timer_enabled:
+                    command_systemctl(["enable", LOOKUP_TIMER])
+                start_service(LOOKUP_TIMER)
         except BaseException as exc:
             # Finish recovery even if a second interrupt arrives during cleanup.
             signal.signal(signal.SIGTERM, signal.SIG_IGN)
             signal.signal(signal.SIGINT, signal.SIG_IGN)
             stop_errors = []
+            if enabling_timer:
+                try:
+                    stop_service(LOOKUP_TIMER)
+                    stop_service(LOOKUP_SERVICE)
+                    if not timer_enabled:
+                        command_systemctl(["disable", LOOKUP_TIMER])
+                except (UpdateError, OSError):
+                    stop_errors.append(LOOKUP_TIMER)
             if files_started:
                 for service in original_services:
                     try:
@@ -889,6 +969,11 @@ def main() -> int:
             rollback_errors = restore_backup(backup, manifest) if files_started and not stop_errors else []
             service_errors = []
             if not stop_errors and not rollback_errors:
+                if files_started and lookup_missing:
+                    try:
+                        command_systemctl(["daemon-reload"])
+                    except (UpdateError, OSError):
+                        rollback_errors.append("systemd daemon-reload")
                 for service in reversed(original_services):
                     try:
                         start_service(service)

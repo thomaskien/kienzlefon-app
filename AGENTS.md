@@ -78,7 +78,7 @@ Wichtige App-Funktionen, die erhalten bleiben muessen:
 - Statuswechsel Neu, In Bearbeitung, Abgeschlossen
 - Soft-Delete in den Papierkorb sowie Restore/Purge
 - Dringend-Markierung, Polling, Browsertitel-Zaehler und Benachrichtigungston
-- Sichtbare UI-Bezeichnung `Platz`; URL-Parameter `?arbeitsplatz=<wert>` bleibt kompatibel
+- Sichtbare UI-Bezeichnung `Telefon`; URL-Parameter `?arbeitsplatz=<wert>` bleibt kompatibel
 - Kommentare in In Bearbeitung mit Text, `created_at` und `workplace`
 - Fokus im Kommentarfeld muss Polling ueberstehen
 - Druckfunktion und reine Text-Zwischenablage fuer Karten

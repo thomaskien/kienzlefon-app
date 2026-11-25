@@ -2,10 +2,11 @@
 
 Kompakte Web-App zur Bearbeitung eingehender JSON-Vorgänge aus der konfigurierten Inbox.
 
-Die **kienzlefon app** hieß bisher **telepraxis-app**. Version **3.7** ergänzt
+Die **kienzlefon app** hieß bisher **telepraxis-app**. Seit **3.8.3** heißt das Feld für das eigene Telefon **Telefon**. Version **3.8.2** schaltet Rufgruppen nach den Freigaben im Fon-Webadmin. Version **3.8.1** zeigt
+T2med-Aktentreffer einzeilig als „Nachname, Vorname“. Bei Platzmangel zeigt der
+Tooltip die vollständige Rufnummer. Version **3.7** ergänzte
 Teilanliegen, Audio-Beilagen aus der Inbox und die optionale Telefonieübersicht.
-Der bisherige Release ist unter `v3.6` abrufbar. Die Screenshots zeigen ältere
-Versionen.
+Das installierbare App-Paket steht im [Release v3.8.3](https://github.com/thomaskien/kienzlefon-app/releases/tag/v3.8.3) zum Download. Die Screenshots zeigen ältere Versionen.
 
 Die Haupt-App bleibt `telepraxis-app.php`. Für SMS-Versand wird zusätzlich `telepraxis-sms.php` als separate Funktionsdatei eingebunden; die Konfiguration erfolgt über `sms-config.php`.
 
@@ -35,23 +36,22 @@ leert. Die App kann den Ordner selbst anlegen. Liegt die Inbox unterhalb des
 Webroots, muss der Webserver direkte HTTP-Zugriffe auf die gesamte Inbox
 einschließlich ihrer Unterordner sperren.
 
-Die Kopfzeile zeigt Eingabefelder für **Benutzer** und **Platz**, solange die
+Die Kopfzeile zeigt Eingabefelder für **Benutzer** und **Telefon**, solange die
 jeweilige Angabe fehlt. Im Hamburger-Menü lassen sich beide Werte jederzeit
 ändern und mit **Speichern** (oder Enter) übernehmen. Benutzer bezeichnet
-den Bearbeiter, etwa `Julia` oder `Dr. Müller`. Der Platz bezeichnet den
-Telefonplatz, etwa `empfang-1`, und wird als `client_id` an T2med übergeben.
+den Bearbeiter, etwa `Julia` oder `Dr. Müller`. Im Feld **Telefon** steht die eingerichtete Kennung, etwa `203` oder `empfang-1`. Die App übergibt sie als `client_id` an T2med.
 Die Angaben werden getrennt im Browser gespeichert. Änderungen in den
 Eingabefeldern gelten erst nach Speichern für Vorgänge und Telefonaktionen.
 
 Links erscheinen die Vorgänge des eigenen Benutzers, auch nach einem Wechsel
-des Platzes. Vorgänge anderer Benutzer bleiben in der mittleren Spalte sichtbar.
+des Telefons. Vorgänge anderer Benutzer bleiben in der mittleren Spalte sichtbar.
 Über **Bearbeiten** kann ein anderer Benutzer den Vorgang übernehmen. Bei
 mehreren Anliegen speichert jedes Häkchen den zugehörigen Benutzer und Zeitpunkt.
 Sobald alle Teilanliegen erledigt sind, schließt **Fertig** den Kasten ab.
 Die Eingabestruktur steht im [Vertrag für Mehrfach-Anliegen](docs/vorgang-v1/ANLIEGEN.md).
 Kommentare, Statusänderungen, Papierkorb-Aktionen und SMS werden dem Benutzer
 zugeordnet. Für Bearbeitungsaktionen ist ein Benutzer erforderlich; für die
-optionalen T2med-Aktionen zusätzlich ein Platz.
+optionalen T2med-Aktionen zusätzlich eine Telefonkennung.
 
 Der Button **Bookmark-Link** berücksichtigt die aktuell ausgefüllten Felder,
 auch wenn nur eines gesetzt ist:
@@ -63,13 +63,12 @@ telepraxis-app.php?benutzer=Julia
 ```
 
 Enthält die URL eines dieser Felder, bleiben nicht mitgegebene Felder bewusst
-leer: Ein Platz-Bookmark fragt deshalb nach dem Benutzer und übernimmt keinen
+leer: Ein Lesezeichen mit Telefonkennung fragt deshalb nach dem Benutzer und übernimmt keinen
 zuletzt gespeicherten Namen. Ohne diese URL-Parameter gelten die gespeicherten
 Angaben. Ein früher gespeicherter `Platz` wird beim ersten Start ohne Parameter
 als bisheriger Bearbeiter übernommen; der neue Telefonplatz wird separat gesetzt.
 Alte Vorgänge und Kommentare behalten ihre bisherigen Bearbeiterangaben als
-Rückfallwerte. Die sichtbare Bezeichnung `Platz` und der URL-Parameter
-`arbeitsplatz` bleiben erhalten.
+Rückfallwerte. Lesezeichen verwenden weiterhin den URL-Parameter `arbeitsplatz`.
 
 Die App lädt die Daten regelmäßig neu und eignet sich damit für den laufenden Einsatz im Praxisalltag.
 
@@ -98,7 +97,9 @@ IVR, AI und Anrufe heute. Der Bereich **Nebenstellen** lässt sich darunter
 aufklappen. **Normal** und **ROT** zeigen den bestätigten Stand der Anlage.
 Die Administration und die Middleware geben die Schaltmöglichkeiten vor.
 
-Für den Server eine Kopie der [Beispielkonfiguration](config/telephony-config.example.php)
+Universalinstaller ab 1.9 bietet im Praxismenü unter **5** die lokale Asterisk-Anzeige, die Verbindung zu einer externen T2med-Middleware und die vollständige lokale T2med-Installation an. Middleware ab 1.5.2 richtet den lokalen App-Zugang automatisch ein. Beim ersten Öffnen erkennt die App eine eingerichtete Quelle. Eine gespeicherte Auswahl im Hamburger-Menü hat Vorrang. [Installationsanleitung](docs/INSTALLER.md)
+
+Für die manuelle Einrichtung eine Kopie der [Beispielkonfiguration](config/telephony-config.example.php)
 unter `/etc/kienzlefon-app/telephony-config.php` oder am PHP-seitig gesetzten
 Pfad `KIENZLEFON_TELEPHONY_CONFIG` ablegen. Die App startet mit deaktiviertem
 Proxy. Vor der Aktivierung die private Verbindung vom App-Host zur Middleware,
@@ -123,8 +124,8 @@ noch Query-Parameter oder Zugangsdaten. Sie muss vom Browser des Arbeitsplatzes
 erreichbar sein. Eine zusätzliche Middleware-Konfiguration in der Oberfläche
 ist nicht nötig.
 
-- **Telefonnummer anklicken:** `/waehlen?client_id=<Platz>&telefon=<Nummer>&sofort=1`.
-- Kleiner Knopf **Akte** daneben: `/patient-oeffnen?client_id=<Platz>&telefon=<Nummer>&auto_close=1`.
+- **Telefonnummer anklicken:** `/waehlen?client_id=<Telefonkennung>&telefon=<Nummer>&sofort=1`.
+- Kleiner Knopf **Akte** daneben: `/patient-oeffnen?client_id=<Telefonkennung>&telefon=<Nummer>&auto_close=1`.
 - Beide Aktionen sind auch in den Tabellen verfügbar; in Bearbeitung zusätzlich
   bei der übermittelten Telefonnummer, jeweils mit der danebenstehenden Nummer.
 - Die Links öffnen einen neuen Tab, damit die App geöffnet bleibt. Beim Aktenaufruf
@@ -135,7 +136,7 @@ ist nicht nötig.
   Tabs ab; andernfalls kann der Tab manuell geschlossen werden. Sie werden
   ausschließlich durch einen Klick aufgerufen. Internationales `+` wird als
   `%2B` kodiert; Benutzer wird nicht an die Middleware gesendet.
-- Bei fehlendem Platz oder ungültiger Konfiguration erscheint ein Hinweis.
+- Bei fehlender Telefonkennung oder ungültiger Konfiguration erscheint ein Hinweis.
   Bei ausgeschalteter Anbindung bleiben die bisherigen `tel:`-Links aktiv und
   der Akte-Knopf entfällt.
 
@@ -146,7 +147,7 @@ sie legt dort keine neuen Clients an. Der mitgelieferte Updater übernimmt vorha
 ### Datenkompatibilität und Prüfung
 
 Neue Vorgangsänderungen speichern den Bearbeiter in `status_updated_benutzer`
-und den Platz in `status_updated_arbeitsplatz`; Kommentare enthalten `benutzer`
+und die Telefonkennung in `status_updated_arbeitsplatz`; Kommentare enthalten `benutzer`
 und `workplace`. Alte Kommentare werden nicht umgeschrieben. Das vorhandene
 SMS-Queue-Schema bleibt erhalten: Dessen technische Spalte `workplace` enthält
 weiterhin den Autor, ab 3.6 also den Benutzer.
@@ -184,7 +185,7 @@ Tabellen und die Kopfzeile bei verschiedenen Bildschirmbreiten.
 - SMS-Empfang über einen eigenständigen Worker mit dauerhafter Sicherung und Routerbereinigung
 - Weitere SMS derselben Nummer im zuletzt angelegten offenen Vorgang, blau markiert und chronologisch unter Kommentare
 - Automatische Bestätigung nur für die erste SMS je Vorgang; keine automatischen Antworten an Kurznummern oder ins Ausland
-- Lokale Speicherung von Arbeitsplatz, Ton, Sichtbarkeit von Abgeschlossen und Papierkorb
+- Lokale Speicherung von Telefonkennung, Ton, Sichtbarkeit von Abgeschlossen und Papierkorb
 - **Kontaktformular mit kanalbezogenem Endpunkt**
 
 <img src="Screenshot 2026-04-01 at 09-03-13 Telepraxis Kontakt.png" alt="drawing" width="600"/>
@@ -217,7 +218,7 @@ Die App unterstützt die aktuell besprochenen Request-Typen des Telefonassistent
 1. `telepraxis-app.php` im Webroot ablegen, bei SMS zusätzlich `telepraxis-sms.php` und `sms-config.php`
 2. Unterhalb davon ein Verzeichnis `inbox` mit den JSON-Dateien bereitstellen
 3. App im Browser öffnen
-4. Arbeitsplatz eintragen
+4. Benutzer und Telefon eintragen
 5. Vorgänge bearbeiten, abschließen, löschen oder bei vorhandener Rückrufnummer SMS senden
 
 ## Bestehende App aktualisieren

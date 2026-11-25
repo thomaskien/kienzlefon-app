@@ -1,9 +1,17 @@
 <?php
 /*
  * telepraxis-app.php
- * Version: 3.7
+ * Version: 3.8.3
  *
  * Fortgeführter Changelog (niemals entfernen, nur ergänzen):
+ * - v3.8.3: Das Feld für das eigene Telefon heißt „Telefon“. Gespeicherte Zuordnungen und Lesezeichen mit arbeitsplatz bleiben kompatibel.
+ * - v3.8.2: Rufgruppen-Haken verwenden die Arbeitsplatzfreigabe der gekoppelten Telefonanlage. Der App-Server bestätigt Praxis und Arbeitsplatz beim Schalten und beim Ergebnisabruf.
+ * - v3.8.1: T2med-Namen einzeilig als „Nachname, Vorname“. Rufnummern nutzen bei Bedarf eine eigene Zeile und zeigen bei Kürzung die ganze Nummer im Tooltip.
+ * - v3.8: Gelbe Klingel- und grüne Gesprächsbubble öffnen die gewählte T2med-Akte. Mehrere Treffer sind mit „oder“ getrennt.
+ *   Bei bekanntem Namen steht die Rufnummer dahinter in Klammern, bei unbekanntem Anrufer allein.
+ * - v3.8: Geöffnetes Hamburger-Menü über Nebenstellen und Papierkorbpfeil gelegt.
+ * - v3.8: Kategorie auf Karten oben rechts neben „Auswählen“ angeordnet. T klappt die Nebenstellen auf und zu.
+ * - v3.8: Arbeitsplatztelefonie mit Vermittlung, Tastaturwahl und einmaliger T2med-Rufnummernauflösung für offene Vorgänge.
  * - 2026-11-19 (v3.7): Papierkorb schützt Vorgänge in Bearbeitung und nummeriert belegte Zieldateinamen beim Verschieben und Wiederherstellen.
  * - 2026-11-19 (v3.7): Einzeilige Zählerleiste mit platzabhängiger Anzeige. Gesetzte Benutzer- und Platzfelder werden in der Kopfzeile ausgeblendet.
  * - v3.7 (2026-11-18)
@@ -116,14 +124,14 @@
 
 declare(strict_types=1);
 
-session_start();
+if (!(PHP_SAPI === 'cli' && ($argv[1] ?? '') === '--resolve-inbox')) session_start();
 date_default_timezone_set('Europe/Berlin');
 
 define('TELEPRAXIS_APP', true);
 require_once __DIR__ . '/telepraxis-sms.php';
 
 const TELEPRAXIS_APP_NAME = 'kienzlefon app';
-const TELEPRAXIS_APP_VERSION = '3.7';
+const TELEPRAXIS_APP_VERSION = '3.8.3';
 const TELEPRAXIS_INBOX_DIR = __DIR__ . DIRECTORY_SEPARATOR . 'inbox';
 const TELEPRAXIS_POLL_INTERVAL_MS = 5000;
 const TELEPRAXIS_DEFAULT_TIMEZONE = 'Europe/Berlin';
@@ -133,7 +141,7 @@ const TELEPRAXIS_USER_MAXLEN = 64;
 
 // Optionale kienzlefon-t2med-Anbindung. Hier aktivieren und die eigene Basisadresse
 // eintragen, z.B. http://middleware.example:8765 (ohne /waehlen oder Parameter).
-// Der Platz aus der Kopfzeile ist die client_id; telefon kommt aus dem Vorgang.
+// Die Telefonkennung aus der Kopfzeile ist die client_id; telefon kommt aus dem Vorgang.
 const TELEPRAXIS_T2MED_ENABLED = false;
 const TELEPRAXIS_T2MED_BASE_URL = '';
 
@@ -934,6 +942,7 @@ function tp_build_entry_view(array $entry, string $fileName): array
         'status' => (string)$entry['app']['status'],
         'urgent' => (bool)$entry['app']['dringend'],
         'deleted' => (bool)$entry['app']['deleted'],
+        'rufnummernaufloesung' => $entry['app']['rufnummernaufloesung'] ?? [],
         'person_name' => $person['name_main'],
         'person_birth_date' => $person['birth_date'],
         'person_display' => $person['display'],
@@ -1634,10 +1643,22 @@ function tp_handle_api(): void
     }
 }
 
+if (PHP_SAPI === 'cli' && ($argv[1] ?? '') === '--resolve-inbox') {
+    define('TELEPRAXIS_LOOKUP_JOB', true);
+    require __DIR__ . '/telepraxis-telephony.php';
+    try { tp_resolve_inbox(); exit(0); }
+    catch (Throwable) { fwrite(STDERR, "Rufnummernsuche vorübergehend nicht verfügbar.\n"); exit(1); }
+}
 if (isset($_REQUEST['ajax']) || isset($_POST['action'])) {
     tp_handle_api();
 }
 
+$practiceConfig = getenv('KIENZLEFON_TELEPHONY_CONFIG') ?: '/etc/kienzlefon-app/telephony-config.php';
+$workplaceActions = false;
+if (!is_link($practiceConfig) && is_readable($practiceConfig) && !str_starts_with((string)realpath($practiceConfig), __DIR__ . '/')) {
+    $practice = require $practiceConfig;
+    $workplaceActions = ($practice['enabled'] ?? false) && isset($practice['token_file']) && is_readable($practice['token_file'] . '.workplace');
+}
 $initialWorkplace = tp_sanitize_workplace((string)($_GET['arbeitsplatz'] ?? ''));
 $initialUser = tp_sanitize_user((string)($_GET['benutzer'] ?? ''));
 $identityFromUrl = array_key_exists('arbeitsplatz', $_GET) || array_key_exists('benutzer', $_GET);
@@ -1686,6 +1707,7 @@ $isAdmin = tp_is_admin();
             backdrop-filter: blur(8px);
             border-bottom: 1px solid var(--panel-border);
         }
+        .topbar:has(.menu-panel:not([hidden])) { z-index: 40; }
         .topbar-row {
             display: flex;
             align-items: center;
@@ -1746,7 +1768,36 @@ $isAdmin = tp_is_admin();
         .telephony-panel summary { cursor: pointer; color: var(--muted); font-size: 0.84rem; width: fit-content; }
         .telephony-extensions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
         .telephony-extension { border: 1px solid var(--panel-border); border-radius: 10px; padding: 5px 9px; font-size: 0.82rem; }
-        .telephony-number { color: var(--muted); margin-left: 4px; }
+        .telephony-extension { position: relative; }
+        .extension-state { display:flex; align-items:baseline; gap:8px; justify-content:space-between; }
+        .extension-state .idle { color:#176b38; font-weight:700; }
+        .extension-state .busy { color:#af202a; font-weight:700; }
+        .telephony-number { font:inherit; font-weight:700; margin-left:auto; padding:0; color:inherit; background:none; border:0; }
+        .extension-contact { display:block; width:100%; padding:0; text-align:left; border:0; font:inherit; color:inherit; background:none; cursor:pointer; }
+        .extension-contact:hover .telephony-number { text-decoration:underline; }
+        .telephony-extension kbd { position:absolute; right:-3px; top:-10px; background:#243552; color:white; padding:1px 5px; border-radius:4px; }
+        .telephony-calls { display:flex; gap:6px; flex-wrap:wrap; padding:0 14px; isolation:isolate; }
+        .call-bubble { min-width:0; max-width:100%; padding:5px 9px; margin-bottom:4px; border-radius:10px; color:#173121; }
+        .call-bubble.connected { background:#cef1d5; }
+        .call-bubble.ringing { background:#ffe69b; color:#4a3300; }
+        .call-bubble button,.call-bubble select { font:inherit; cursor:pointer; }
+        .transfer-options { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:4px; }
+        .card-header-box .name-birth,.table-name .name-birth { margin-left:auto; text-align:right; }
+        .header-line.header-matches { align-items:baseline; flex-wrap:wrap; }
+        .header-matches > div { min-width:0; max-width:100%; }
+        .header-matches > div:empty { display:none; }
+        .header-matches > .phone-link { flex:none; margin-left:auto; }
+        .patient-result { min-width:0; }
+        .patient-hits { display:flex; flex-wrap:wrap; gap:4px; }
+        .patient-hits + .patient-hits { margin-top:4px; }
+        .table-patient .patient-hits { flex-direction:column; align-items:flex-start; }
+        .patient-hit { position:relative; min-width:0; max-width:100%; vertical-align:middle; text-align:left; font:inherit; font-size:.85em; padding:2px 6px; background:white; color:#25394b; border:1px solid #8595a4; border-radius:6px; cursor:pointer; }
+        .patient-label, .phone-digits { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .patient-tooltip { display:none; position:absolute; z-index:8; left:0; bottom:100%; width:max-content; max-width:220px; background:#202f40; color:white; padding:4px 7px; border-radius:4px; }
+        .patient-hit:is(:hover,:focus-visible) .patient-tooltip { display:block; }
+        .area-open { border:0; padding:0; font:inherit; color:inherit; background:transparent; cursor:pointer; }
+        .table-name { display:flex; align-items:baseline; gap:5px; }
+        :focus-visible { outline:2px solid #2456ab; outline-offset:2px; }
         .telephony-groups { display: flex; flex-wrap: wrap; gap: 6px; }
         .telephony-groups label { display: inline-flex; align-items: center; gap: 3px; }
         .telephony-unavailable { color: var(--muted); font-size: 0.82rem; }
@@ -1774,6 +1825,7 @@ $isAdmin = tp_is_admin();
         }
         .menu-shell {
             position: relative;
+            z-index: 1;
             margin-left: auto;
             flex: 0 0 auto;
         }
@@ -1782,7 +1834,7 @@ $isAdmin = tp_is_admin();
             top: calc(100% + 8px);
             right: 0;
             width: min(360px, calc(100vw - 24px));
-            background: rgba(255,255,255,0.98);
+            background: var(--panel);
             border: 1px solid var(--panel-border);
             border-radius: 16px;
             box-shadow: var(--shadow);
@@ -2150,6 +2202,14 @@ $isAdmin = tp_is_admin();
             margin-top: 0;
         }
         .right-column .card { min-height: 230px; }
+        .card-topline {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .card-topline > :last-child { margin-inline-start: auto; min-width: 0; }
+        .card-topline .anliegen-tags { justify-content: flex-end; }
+        .card-topline .category-tag { white-space: normal; overflow-wrap: anywhere; }
         .selection-row {
             display: flex;
             align-items: center;
@@ -2231,7 +2291,9 @@ $isAdmin = tp_is_admin();
             color: var(--text);
             text-decoration: none;
         }
-        .phone-link, .workplace-chip, .header-date {
+        .phone-link, .transmitted-link, .call-number { display:inline-block; max-width:100%; vertical-align:baseline; }
+        #phone-tooltip { position:fixed; z-index:39; pointer-events:none; width:max-content; max-width:calc(100vw - 8px); overflow-wrap:anywhere; padding:4px 7px; border-radius:4px; background:#202f40; color:white; font-size:.85rem; }
+        .workplace-chip, .header-date {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -2412,6 +2474,7 @@ $isAdmin = tp_is_admin();
     </style>
 </head>
 <body>
+<div id="phone-tooltip" role="tooltip" hidden></div>
 <div class="topbar">
     <div class="topbar-row">
         <div class="topbar-title"><span class="topbar-title-app"><?= tp_h(TELEPRAXIS_APP_NAME) ?></span><span class="topbar-title-meta">v<?= tp_h(TELEPRAXIS_APP_VERSION) ?> von Dr. Thomas Kienzle</span></div>
@@ -2419,8 +2482,8 @@ $isAdmin = tp_is_admin();
             <div class="place-setup-inner">
                 <label for="user-input-setup">Benutzer</label>
                 <input type="text" id="user-input-setup" value="<?= tp_h($initialUser) ?>" maxlength="<?= TELEPRAXIS_USER_MAXLEN ?>" placeholder="z.B. Julia" autocomplete="off">
-                <label for="workplace-input-setup">Platz</label>
-                <input type="text" id="workplace-input-setup" value="<?= tp_h($initialWorkplace) ?>" maxlength="<?= TELEPRAXIS_WORKPLACE_MAXLEN ?>" placeholder="z.B. empfang-1" autocomplete="off">
+                <label for="workplace-input-setup">Telefon</label>
+                <input type="text" id="workplace-input-setup" value="<?= tp_h($initialWorkplace) ?>" maxlength="<?= TELEPRAXIS_WORKPLACE_MAXLEN ?>" placeholder="z. B. 203" autocomplete="off">
                 <button class="btn btn-primary" id="save-workplace-btn-setup" type="button">Speichern</button>
             </div>
         </div>
@@ -2430,14 +2493,14 @@ $isAdmin = tp_is_admin();
             <button class="hamburger-btn" id="menu-toggle-btn" type="button" aria-expanded="false" aria-controls="header-menu" aria-label="Menü öffnen">☰</button>
             <div class="menu-panel" id="header-menu" hidden>
                 <div class="menu-section">
-                    <div class="menu-heading">Benutzer und Platz</div>
+                    <div class="menu-heading">Benutzer und Telefon</div>
                     <div class="menu-line menu-place-input-line">
                         <label for="user-input-menu">Benutzer</label>
                         <input type="text" id="user-input-menu" value="<?= tp_h($initialUser) ?>" maxlength="<?= TELEPRAXIS_USER_MAXLEN ?>" placeholder="z.B. Julia" autocomplete="off">
                     </div>
                     <div class="menu-line menu-place-input-line">
-                        <label for="workplace-input-menu">Platz</label>
-                        <input type="text" id="workplace-input-menu" value="<?= tp_h($initialWorkplace) ?>" maxlength="<?= TELEPRAXIS_WORKPLACE_MAXLEN ?>" placeholder="z.B. empfang-1" autocomplete="off">
+                        <label for="workplace-input-menu">Telefon</label>
+                        <input type="text" id="workplace-input-menu" value="<?= tp_h($initialWorkplace) ?>" maxlength="<?= TELEPRAXIS_WORKPLACE_MAXLEN ?>" placeholder="z. B. 203" autocomplete="off">
                     </div>
                     <div class="menu-line menu-place-action-line">
                         <button class="btn btn-primary" id="save-workplace-btn-menu" type="button">Speichern</button>
@@ -2467,7 +2530,7 @@ $isAdmin = tp_is_admin();
 
                 <div class="menu-section">
                     <label class="menu-toggle-line"><span>Benachrichtigungs-Ton</span><input type="checkbox" id="sound-toggle" checked></label>
-                    <label class="menu-toggle-line"><span>T2med-Patientenanbindung</span><input type="checkbox" id="t2med-patient-toggle"<?= TELEPRAXIS_T2MED_ENABLED ? ' checked' : ' disabled' ?>></label>
+                    <label class="menu-toggle-line"><span>T2med-Patientenanbindung</span><input type="checkbox" id="t2med-patient-toggle"<?= (TELEPRAXIS_T2MED_ENABLED || $workplaceActions) ? ' checked' : ' disabled' ?>></label>
                     <label class="menu-toggle-line"><span>Telefonie</span><input type="checkbox" id="telephony-toggle"></label>
                     <label class="menu-toggle-line"><span>Abgeschlossen anzeigen</span><input type="checkbox" id="completed-toggle" checked></label>
                     <?php if ($isAdmin): ?>
@@ -2479,9 +2542,10 @@ $isAdmin = tp_is_admin();
             </div>
         </div>
     </div>
+    <div class="telephony-calls" id="telephony-calls"></div>
     <details class="telephony-panel" id="telephony-panel" hidden>
         <summary>Nebenstellen</summary>
-        <div class="telephony-extensions" data-nst-list></div>
+        <div class="telephony-extensions" data-nst-list></div><small data-shortcut-help></small>
     </details>
 </div>
 
@@ -2495,7 +2559,7 @@ $isAdmin = tp_is_admin();
         <section class="column left-column">
             <div class="column-header">
                 <div class="column-head-main">
-                    <h2 class="column-title">In Bearbeitung</h2>
+                    <h2 class="column-title"><button type="button" class="area-open">In Bearbeitung</button></h2>
                     <div class="column-count" id="count-left">0</div>
                 </div>
             </div>
@@ -2505,7 +2569,7 @@ $isAdmin = tp_is_admin();
         <section class="column middle-column">
             <div class="column-header">
                 <div class="column-head-main">
-                    <h2 class="column-title">Neu</h2>
+                    <h2 class="column-title"><button type="button" class="area-open">Neu</button></h2>
                     <div class="column-count" id="count-middle">0</div>
                 </div>
                 <div class="column-tools">
@@ -2523,7 +2587,7 @@ $isAdmin = tp_is_admin();
         <section class="column right-column" id="completed-column">
             <div class="column-header">
                 <div class="column-head-main">
-                    <h2 class="column-title">Abgeschlossen</h2>
+                    <h2 class="column-title"><button type="button" class="area-open">Abgeschlossen</button></h2>
                     <div class="column-count" id="count-right">0</div>
                 </div>
                 <div class="column-tools">
@@ -2543,7 +2607,7 @@ $isAdmin = tp_is_admin();
     <section class="trash-panel hidden" id="trash-panel">
         <div class="column-header">
             <div class="column-head-main">
-                <h2 class="column-title">Papierkorb</h2>
+                <h2 class="column-title"><button type="button" class="area-open">Papierkorb</button></h2>
                 <div class="column-count" id="count-trash">0</div>
             </div>
             <div class="column-tools">
@@ -2561,13 +2625,14 @@ $isAdmin = tp_is_admin();
     </section>
 </div>
 
-<script src="telepraxis-telephony.js"></script>
+<script src="telepraxis-telephony.js?v=<?= rawurlencode(TELEPRAXIS_APP_VERSION) ?>"></script>
 <script>
 (() => {
     const csrfToken = <?= json_encode($csrfToken, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const appName = <?= json_encode(TELEPRAXIS_APP_NAME, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     const appVersion = <?= json_encode(TELEPRAXIS_APP_VERSION, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-    const t2medEnabled = <?= TELEPRAXIS_T2MED_ENABLED ? 'true' : 'false' ?>;
+    const workplaceActions = <?= $workplaceActions ? 'true' : 'false' ?>;
+    const t2medEnabled = workplaceActions || <?= TELEPRAXIS_T2MED_ENABLED ? 'true' : 'false' ?>;
     const patientToggle = document.getElementById('t2med-patient-toggle');
     let patientIntegration = t2medEnabled && localStorage.getItem('kienzlefon_t2med_patient_enabled') !== '0';
     let telephony = null;
@@ -2804,7 +2869,7 @@ $isAdmin = tp_is_admin();
         localStorage.setItem('telepraxis_user', currentUser());
         localStorage.setItem('telepraxis_client_id', currentWorkplace());
         hideBookmarkOpen();
-        showMessage(`Gespeichert · Benutzer: ${currentUser() || '—'} · Platz: ${currentWorkplace() || '—'}`);
+        showMessage(`Gespeichert · Benutzer: ${currentUser() || '—'} · Telefon: ${currentWorkplace() || '—'}`);
         render(lastEntries);
     }
 
@@ -2946,6 +3011,11 @@ $isAdmin = tp_is_admin();
                 trash: els.trashBody ? els.trashBody.scrollTop : 0,
             }
         };
+        const card = active?.closest('[data-entry-file]');
+        if (card && active.matches('button,input,a,summary')) {
+            state.control = {file:card.dataset.entryFile, tag:active.tagName, attrs:[...active.attributes]
+                .filter(attr => attr.name.startsWith('data-')).map(attr => [attr.name, attr.value])};
+        }
         if (active && active.matches && active.matches('[data-comment-input]')) {
             state.commentFocus = {
                 file: String(active.getAttribute('data-comment-input') || ''),
@@ -2969,6 +3039,11 @@ $isAdmin = tp_is_admin();
         if (els.middleBody) els.middleBody.scrollTop = state.scrolls.middle || 0;
         if (els.rightBody) els.rightBody.scrollTop = state.scrolls.right || 0;
         if (els.trashBody) els.trashBody.scrollTop = state.scrolls.trash || 0;
+        if (state.control) {
+            const {file,tag,attrs} = state.control;
+            const selector = tag + attrs.map(([key,val]) => `[${CSS.escape(key)}="${CSS.escape(val)}"]`).join('');
+            document.querySelector(`[data-entry-file="${CSS.escape(file)}"] ${selector}`)?.focus({preventScroll:true});
+        }
         if (state.commentFocus && state.commentFocus.file) {
             const input = document.querySelector(`[data-comment-input="${CSS.escape(state.commentFocus.file)}"]`);
             if (input) {
@@ -3016,7 +3091,7 @@ $isAdmin = tp_is_admin();
     function createSelectionControl(area, entry, tableMode = false) {
         const checked = selectionChecked(area, entry.file) ? ' checked' : '';
         if (tableMode) {
-            return `<div class="table-check"><input type="checkbox" data-select-area="${escapeHtml(area)}" data-select-file="${escapeHtml(entry.file)}"${checked}></div>`;
+            return `<div class="table-check"><input type="checkbox" aria-label="Vorgang auswählen" data-select-area="${escapeHtml(area)}" data-select-file="${escapeHtml(entry.file)}"${checked}></div>`;
         }
         return `<label class="selection-row"><input type="checkbox" data-select-area="${escapeHtml(area)}" data-select-file="${escapeHtml(entry.file)}"${checked}> <span>Auswählen</span></label>`;
     }
@@ -3031,7 +3106,7 @@ $isAdmin = tp_is_admin();
             url.pathname = `${url.pathname.replace(/\/+$/, '')}/${action}`;
             url.searchParams.set('client_id', currentWorkplace());
             url.searchParams.set('telefon', phone);
-            if (action === 'waehlen') url.searchParams.set('sofort', '1');
+            if (action === 'waehlen') { url.searchParams.set('sofort', '1'); url.searchParams.set('auto_close', '1'); }
             if (action === 'patient-oeffnen') url.searchParams.set('auto_close', '1');
             return url.toString();
         } catch (error) {
@@ -3040,18 +3115,81 @@ $isAdmin = tp_is_admin();
     }
 
     function createPhoneActions(display, telHref, rawPhone, cssClass = 'phone-link') {
-        if (!telHref) return `<span class="${cssClass}">${escapeHtml(display || '—')}</span>`;
-        if (!t2medEnabled) return `<a class="${cssClass}" href="tel:${escapeHtml(telHref)}">${escapeHtml(display || '')}</a>`;
+        const label = `<span class="phone-digits">${escapeHtml(display || '—')}</span>`;
+        if (!telHref) return `<span class="${cssClass}">${label}</span>`;
+        if (!t2medEnabled) return `<a class="${cssClass}" href="tel:${escapeHtml(telHref)}">${label}</a>`;
         const callUrl = t2medUrl('waehlen', rawPhone);
-        const recordUrl = t2medUrl('patient-oeffnen', rawPhone);
-        const reason = !currentWorkplace() ? 'Bitte zuerst einen Platz eintragen und speichern.' : 'Middleware-Adresse oder Telefonnummer ist ungültig. Bitte Einstellungen prüfen.';
-        const phone = callUrl
-            ? `<a class="${cssClass}" href="${escapeHtml(callUrl)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" title="Rückruf starten">${escapeHtml(display || '')}</a>`
-            : `<button type="button" class="${cssClass}" data-t2med-unavailable="${escapeHtml(reason)}">${escapeHtml(display || '')}</button>`;
-        const record = !patientIntegration ? '' : recordUrl
-            ? `<a class="btn btn-record" href="${escapeHtml(recordUrl)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" aria-label="Patientenakte öffnen" title="Patientenakte öffnen">Akte</a>`
-            : `<button type="button" class="btn btn-record" data-t2med-unavailable="${escapeHtml(reason)}" title="${escapeHtml(reason)}">Akte</button>`;
-        return `<span class="phone-actions">${phone}${record}</span>`;
+        const action = `aria-label="${escapeHtml(display)} anrufen"`;
+        if (workplaceActions) return `<button type="button" class="${cssClass}" data-workplace-dial="${escapeHtml(rawPhone || telHref)}" ${action}>${label}</button>`;
+        const reason = 'Bitte die Angabe im Feld „Telefon“ und die Middleware-Adresse prüfen.';
+        return callUrl
+            ? `<a class="${cssClass}" href="${escapeHtml(callUrl)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" ${action}>${label}</a>`
+            : `<button type="button" class="${cssClass}" data-t2med-unavailable="${reason}">${label}</button>`;
+    }
+
+    function setupPhoneTooltip() {
+        const phoneTooltip = document.getElementById('phone-tooltip');
+        const phoneControls = '.phone-link, .transmitted-link, .call-number';
+        let tooltipPhone = null;
+
+        function positionPhoneTooltip() {
+            const digits = tooltipPhone?.querySelector('.phone-digits');
+            if (!digits?.isConnected || digits.scrollWidth <= digits.clientWidth) {
+                phoneTooltip.hidden = true;
+                return;
+            }
+            phoneTooltip.textContent = digits.textContent;
+            phoneTooltip.hidden = false;
+            const rect = digits.getBoundingClientRect();
+            const left = Math.min(rect.right - phoneTooltip.offsetWidth, document.documentElement.clientWidth - phoneTooltip.offsetWidth - 4);
+            phoneTooltip.style.left = Math.max(4, left) + 'px';
+            const above = rect.top - phoneTooltip.offsetHeight - 4;
+            phoneTooltip.style.top = (above >= 0 ? above : rect.bottom + 4) + 'px';
+        }
+
+        const phoneResize = new ResizeObserver(positionPhoneTooltip);
+        function trackPhoneTooltip(control) {
+            if (tooltipPhone === control) return;
+            phoneResize.disconnect();
+            tooltipPhone = control;
+            if (control) phoneResize.observe(control);
+            positionPhoneTooltip();
+        }
+        for (const eventName of ['pointerover', 'focusin', 'pointerout', 'focusout']) {
+            document.addEventListener(eventName, event => {
+                const target = eventName.endsWith('out') ? event.relatedTarget : event.target;
+                trackPhoneTooltip(target?.closest?.(phoneControls) || null);
+            });
+        }
+        document.addEventListener('scroll', () => { if (tooltipPhone) positionPhoneTooltip(); }, true);
+        window.addEventListener('resize', () => { if (tooltipPhone) positionPhoneTooltip(); });
+    }
+
+    function patientButtons(matches, phone, separator = '') {
+        if (!patientIntegration || !Array.isArray(matches)) return '';
+        return matches.map(p => {
+            const name = [p.nachname, p.vorname].filter(Boolean).join(', ') || p.name || 'Name unbekannt';
+            const birth = /^(\d{4})-(\d\d)-(\d\d)$/.exec(p.geburtsdatum || '');
+            const tip = name + (birth ? `, ${+birth[3]}.${+birth[2]}.${birth[1]}` : '') + ' aus T2med';
+            const attrs = phone && Number.isSafeInteger(p.patientennummer) && p.patientennummer > 0
+                ? `data-patient="${p.patientennummer}" data-number="${escapeHtml(phone)}"` : 'disabled';
+            return `<button type="button" class="patient-hit" ${attrs} aria-label="${escapeHtml(tip)}"><span class="patient-label">${escapeHtml(name)}</span><span role="tooltip" class="patient-tooltip">${escapeHtml(tip)}</span></button>`;
+        }).join(separator);
+    }
+
+    function patientMatches(entry) {
+        if (!patientIntegration || !Array.isArray(entry.rufnummernaufloesung)) return '';
+        const results = entry.rufnummernaufloesung.filter(r => r && Array.isArray(r.treffer));
+        return results.map(result => {
+            if (!result.treffer.length) return '';
+            const rows = [];
+            for (let i = 0; i < result.treffer.length; i += 2) {
+                const hits = patientButtons(result.treffer.slice(i, i + 2), result.nummer);
+                rows.push(`<div class="patient-hits">${hits}</div>`);
+            }
+            const phone = results.length > 1 ? `<small>${escapeHtml(result.nummer)}</small>` : '';
+            return `<div class="patient-result">${phone}${rows.join('')}</div>`;
+        }).join('');
     }
 
     function createCategoryTags(entry, plain = false) {
@@ -3084,8 +3222,8 @@ $isAdmin = tp_is_admin();
         return `
             <div class="card-header-box">
                 ${nameLine}
-                <div class="header-line">
-                    ${createCategoryTags(entry)}
+                <div class="header-line header-matches">
+                    <div>${patientMatches(entry)}</div>
                     ${phoneNode}
                 </div>
                 <div class="header-line">
@@ -3297,7 +3435,10 @@ $isAdmin = tp_is_admin();
             : '';
         return `
             <article class="${classes.join(' ')}" data-entry-file="${escapeHtml(entry.file || '')}">
-                ${area === 'middle' || area === 'right' || area === 'trash' ? createSelectionControl(area, entry, false) : ''}
+                <div class="card-topline">
+                    ${area === 'middle' || area === 'right' || area === 'trash' ? createSelectionControl(area, entry, false) : ''}
+                    ${createCategoryTags(entry)}
+                </div>
                 ${createHeader(entry)}
                 ${createAnliegenBody(entry, area)}
                 ${area === 'left' ? createLeftExtras(entry) : createRecordings(entry) + createReceivedSmsHistory(entry)}
@@ -3343,12 +3484,12 @@ $isAdmin = tp_is_admin();
                         const rowClass = entry.deleted ? 'row-status-trash' : `row-status-${entry.status}`;
                         const urgentClass = entry.urgent ? ' urgent-row' : '';
                         const name = escapeHtml(entry.person_name || '—');
-                        const birth = entry.person_birth_date ? ` · ${escapeHtml(entry.person_birth_date)}` : '';
+                        const birth = entry.person_birth_date ? `<span class="name-birth">${escapeHtml(entry.person_birth_date)}</span>` : '';
                         return `
-                        <tr class="${rowClass}${urgentClass}">
+                        <tr class="${rowClass}${urgentClass}" data-entry-file="${escapeHtml(entry.file)}">
                             <td>${createSelectionControl(area, entry, true)}</td>
                             <td>${createCategoryTags(entry, true)}</td>
-                            <td class="table-patient"><div class="table-name">${name}${birth}</div><div class="table-received">${escapeHtml(entry.received_at_display || '—')}</div>${t2medEnabled ? `<div class="table-phone">${createPhoneActions(entry.telephone_display, entry.telephone_href, entry.telephone_raw)}</div>` : ''}</td>
+                            <td class="table-patient"><div class="table-name"><strong>${name}</strong>${birth}</div>${patientMatches(entry)}<div class="table-received">${escapeHtml(entry.received_at_display || '—')}</div>${t2medEnabled ? `<div class="table-phone">${createPhoneActions(entry.telephone_display, entry.telephone_href, entry.telephone_raw)}</div>` : ''}</td>
                             <td><div class="table-preview${area === 'middle' || area === 'right' ? ' table-preview-clamped' : ''}" title="${escapeHtml(entry.body || '—')}">${escapeHtml(entry.body || '—')}</div>${createRecordings(entry)}${createReceivedSmsHistory(entry)}</td>
                             ${hasDeletedCol ? `<td class="table-received">${escapeHtml(entry.deleted_at_display || '—')}</td>` : ''}
                             <td>${tableActionButtons(entry, area)}</td>
@@ -3373,7 +3514,7 @@ $isAdmin = tp_is_admin();
             ['bearbeitung', 'In Bearbeitung', bearbeitung],
             ['abgeschlossen', 'Abgeschlossen', abgeschlossen],
             ['benutzer', 'Benutzer', currentUser() || '—'],
-            ['platz', 'Platz', workplace],
+            ['platz', 'Telefon', workplace],
             ...phoneCounters,
         ];
         if (els.headerSummary) {
@@ -3456,7 +3597,7 @@ $isAdmin = tp_is_admin();
         lines.push(`Telefon: ${entry.telephone_display || '—'}`);
         lines.push(`Eingang: ${entry.received_at_display || '—'}`);
         if (entry.last_user) lines.push(`Benutzer: ${entry.last_user}`);
-        if (entry.last_workplace) lines.push(`Platz: ${entry.last_workplace}`);
+        if (entry.last_workplace) lines.push(`Telefon (Praxis): ${entry.last_workplace}`);
         lines.push('');
         lines.push('Inhalt:');
         lines.push(entry.body || '—');
@@ -3847,7 +3988,7 @@ $isAdmin = tp_is_admin();
     async function createBookmarkLink() {
         const identity = draftIdentity();
         if (!identity.user && !identity.workplace) {
-            showMessage('Bitte Benutzer oder Platz für den Bookmark-Link eintragen.', true);
+            showMessage('Bitte Benutzer oder Telefon für den Bookmark-Link eintragen.', true);
             return;
         }
         const url = new URL(window.location.href);
@@ -3862,6 +4003,10 @@ $isAdmin = tp_is_admin();
     }
 
     document.addEventListener('click', event => {
+        const patient = event.target.closest('[data-patient]');
+        if (patient) { telephony?.action('patient', {number:patient.dataset.number, patient_number:Number(patient.dataset.patient)}); return; }
+        const dial = event.target.closest('[data-workplace-dial]');
+        if (dial) { telephony?.dial(dial.dataset.workplaceDial); return; }
         const unavailable = event.target.closest('[data-t2med-unavailable]');
         if (unavailable) {
             event.preventDefault();
@@ -4100,14 +4245,29 @@ $isAdmin = tp_is_admin();
         patientToggle.addEventListener('change', () => {
             patientIntegration = t2medEnabled && patientToggle.checked;
             localStorage.setItem('kienzlefon_t2med_patient_enabled', patientIntegration ? '1' : '0');
+            telephony?.paintCalls();
             render(lastEntries);
         });
     }
+    for (const area of document.querySelectorAll('.area-open')) {
+        area.addEventListener('click', () => {
+            const section = area.closest('section');
+            (section.querySelector('.column-body :is(input,button,a,summary):not(:disabled), .trash-body :is(input,button,a,summary):not(:disabled)')
+                || section.querySelector('.column-tools button:not(:disabled)'))?.focus();
+        });
+        area.addEventListener('keydown', event => {
+            if (event.key !== 'Tab') return;
+            const areas = [...document.querySelectorAll('.area-open')].filter(button => button.getClientRects().length);
+            const next = areas[areas.indexOf(area) + (event.shiftKey ? -1 : 1)];
+            if (next) { event.preventDefault(); next.focus(); }
+        });
+    }
+    setupPhoneTooltip();
     loadLocalSettings();
     const telephonyToggle = document.getElementById('telephony-toggle');
     if (window.KienzlefonTelephony && telephonyToggle) {
         telephony = new window.KienzlefonTelephony(telephonyToggle, document.getElementById('telephony-panel'),
-            currentWorkplace, () => renderStats(lastEntries), showMessage);
+            currentWorkplace, () => renderStats(lastEntries), showMessage, patientButtons);
         telephony.restart();
     } else if (telephonyToggle) {
         telephonyToggle.disabled = true;

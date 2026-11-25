@@ -487,7 +487,8 @@ esac
         self.assertFalse(list(self.root.rglob("executed")))
 
     def test_actual_repository_source_passes_check_and_update(self) -> None:
-        for name in ("telepraxis-app.php", "telepraxis-sms.php", "sms-config.php", "telepraxis-sms-queue.php"):
+        for name in ("telepraxis-app.php", "telepraxis-sms.php", "sms-config.php", "telepraxis-sms-queue.php",
+                     "telepraxis-rufnummern.service", "telepraxis-rufnummern.timer"):
             shutil.copyfile(REPOSITORY / name, self.source / name)
         old_app = self.webroot / "telepraxis-app.php"
         with old_app.open("a", encoding="utf-8") as handle:
@@ -503,7 +504,7 @@ esac
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         content = (self.webroot / "telepraxis-app.php").read_text()
         self.assertIn("const TELEPRAXIS_APP_NAME = 'kienzlefon app';", content)
-        self.assertIn("const TELEPRAXIS_APP_VERSION = '3.7';", content)
+        self.assertIn("const TELEPRAXIS_APP_VERSION = '3.8.3';", content)
         self.assertIn("const TELEPRAXIS_POLL_INTERVAL_MS = 4000 + 250;", content)
         self.assertIn("const TELEPRAXIS_T2MED_ENABLED = true;", content)
         self.assertIn("const TELEPRAXIS_T2MED_BASE_URL = 'http://middleware.example:8765';", content)
@@ -517,6 +518,73 @@ esac
              mock.patch.object(updater.signal, "signal"), \
              mock.patch("sys.stdout", new_callable=io.StringIO):
             return updater.main()
+
+    def test_lookup_timer_migration_retry_and_rollback(self):
+        updater = load_updater()
+        units = self.root / "units"
+        units.mkdir()
+        for unit in updater.LOOKUP_UNITS:
+            shutil.copyfile(REPOSITORY / unit, self.source / unit)
+        write(self.source / "telepraxis-app.php", NEW_APP + "\n// --resolve-inbox\n")
+        active = set()
+        enabled = set()
+        actions = []
+        fail_start = True
+
+        def systemctl(args, allowed=(0,)):
+            nonlocal fail_start
+            action, name = args[0], args[-1]
+            actions.append(tuple(args))
+            value = ""
+            if action == "show":
+                if "--property=LoadState" in args:
+                    value = "loaded" if (units / name).is_file() else "not-found"
+                else:
+                    value = "active" if name in active else "inactive"
+            elif action == "is-enabled":
+                value = "enabled" if name in enabled else "disabled"
+            elif action == "enable":
+                enabled.add(name)
+            elif action == "disable":
+                enabled.discard(name)
+            elif action == "start":
+                if fail_start:
+                    fail_start = False
+                    raise updater.UpdateError("Simulierter Startfehler")
+                active.add(name)
+            elif action == "stop":
+                active.discard(name)
+            else:
+                self.assertEqual(action, "daemon-reload")
+            return subprocess.CompletedProcess(args, 0, value + "\n")
+
+        with mock.patch.object(updater, "SYSTEMD_DIR", units), \
+             mock.patch.object(updater, "detect_web_service", return_value=("php-fpm.service", False)), \
+             mock.patch.object(updater, "command_systemctl", side_effect=systemctl):
+            before = digest_tree(self.webroot)
+            self.assertEqual(self.run_in_process(updater, "--check"), 0)
+            self.assertEqual(actions, [])
+            with self.assertRaisesRegex(updater.UpdateError, "wiederhergestellt"):
+                self.run_in_process(updater)
+            self.assertEqual(digest_tree(self.webroot), before)
+            self.assertEqual(list(units.iterdir()), [])
+            self.assertFalse(active or enabled)
+            self.assertEqual(self.run_in_process(updater), 0)
+            self.assertEqual(active, {updater.LOOKUP_TIMER})
+            self.assertEqual(enabled, active)
+            service = units / updater.LOOKUP_SERVICE
+            self.assertIn(f'"{self.webroot.resolve()}/telepraxis-app.php" --resolve-inbox', service.read_text())
+            self.assertEqual(stat.S_IMODE(service.stat().st_mode), 0o644)
+            custom = service.read_text() + "\n# lokale Anpassung\n"
+            service.write_text(custom)
+            actions.clear()
+            self.assertEqual(self.run_in_process(updater), 0)
+            self.assertEqual(service.read_text(), custom)
+            self.assertIn(("stop", updater.LOOKUP_TIMER), actions)
+            self.assertIn(("stop", updater.LOOKUP_SERVICE), actions)
+            self.assertIn(("start", updater.LOOKUP_TIMER), actions)
+            self.assertNotIn(("daemon-reload",), actions)
+            self.assertNotIn(("enable", updater.LOOKUP_TIMER), actions)
 
     def test_atomic_copy_keeps_public_payload_in_private_directory(self) -> None:
         updater = load_updater()

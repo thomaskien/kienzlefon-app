@@ -2,8 +2,9 @@
 
 `kienzlefon-app-update-v1.0.sh` aktualisiert eine bestehende Installation auf dem
 Zielsystem. Der bisherige `zielserver-vorbereiten-v1.8.sh` bleibt fuer die
-Einrichtung zustaendig. Der Updater legt keine Benutzer, Gruppen, Schluessel,
-nginx-Konfigurationen oder systemd-Units an und installiert keine Pakete.
+Einrichtung zustaendig. Ab App 3.8 ergänzt der Updater die systemd-Units für
+die Rufnummernauflösung und aktiviert den Timer. Benutzer, Gruppen, Schlüssel,
+nginx-Konfiguration und Systempakete verwaltet weiterhin der Zielserver-Installer.
 
 ## Voraussetzungen und Umfang
 
@@ -184,3 +185,29 @@ python3 tests/test_app_package.py
 
 Die Tests verwenden temporaere Installationen und simulierte Dienste. Sie
 benoetigen weder Rootrechte noch Netzwerkzugriff und versenden keine SMS.
+
+## Arbeitsplatztelefonie und T2med-Aktentreffer ab App 3.8
+
+Ab App 3.8.2 gilt die Arbeitsplatzfreigabe der gekoppelten Anlage für die Haken **Normal** und **ROT**. Bei „alle Arbeitsplätze“ und leeren Standardlisten genügt die bestehende Praxis-App-Sitzung. Die App liest die Freigabe auch beim Absenden und beim Ergebnisabruf. Die Haken folgen den je Rufgruppe erlaubten Schaltrichtungen.
+
+Für namentlich ausgewählte Plätze kann der Praxis-Webserver die FastCGI-/Servervariable `KIENZLEFON_WORKPLACE_ID` anhand seiner vertrauenswürdigen Arbeitsplatzzuordnung setzen, beispielsweise auf `201`. Ohne Zuordnung erhält die Sitzung eine vom App-Server erzeugte Kennung. Das frei editierbare Feld „Telefon“ (bis 3.8.2 „Platz“) bleibt dem eigenen Telefon und der Vorgangsbearbeitung zugeordnet. Eine bestehende App-Liste oder der explizite Modus `selected` schränkt die Anlagenfreigabe zusätzlich ein.
+
+App 3.8.1 und Middleware 1.5.8 zeigen gefundene Akten als „Nachname, Vorname“.
+Der Rufnummerndienst ergänzt die Namensfelder auch bei bereits gespeicherten
+Treffern in der Inbox. Dazu gleicht er den Bestand einmal mit T2med ab und
+übernimmt die Felder nur für denselben Treffer.
+
+Die vollständige Arbeitsplatzanbindung benötigt Middleware 1.5.7 und deren eigene Zugänge für die Rufnummernsuche und die Bedienung. Der Middleware-Installer erzeugt die Schlüssel bei der App-Anbindung und installiert sie bei einer lokalen App für den Webdienst. Bei getrennter Installation die beiden privaten Begleitdateien mit den Endungen `.lookup` und `.workplace` über denselben geschützten Weg wie die App-Schlüsseldatei übertragen und zusammen per `--token-file` einrichten. Der bisherige Übersichtsschlüssel behält seinen Umfang.
+
+Erstinstallation und reguläres App-Update richten den Timer für offene Vorgänge
+ein. Vor dem Dateiaustausch hält der Updater einen laufenden Timer und dessen
+Dienst an. Er berücksichtigt vorhandene Units und administrative Maskierungen.
+Bei externer Dienstverwaltung mit `--no-service` verwaltet der Betreiber auch
+diesen Timer. Für eine bestehende Standardinstallation genügt im App-Paket
+folgender Aufruf zur nachträglichen Einrichtung.
+
+```sh
+sudo bash zielserver-vorbereiten-v1.8.sh --install-lookup-timer
+```
+
+Alle 15 Sekunden prüft der Timer die lokale Inbox. Ein Suchergebnis pro Nummer bleibt beim Vorgang unter `app.rufnummernaufloesung`. Ein Ausfall lässt offene Suchen für den nächsten Lauf stehen. Auch bestehende neue und in Bearbeitung befindliche Vorgänge werden berücksichtigt. Für Geburtsdaten aus dem FHIR-Verzeichnis den üblichen Verzeichnisabgleich in T2med nach dem Importer-Update einmal ausführen. Die AI-Bubble benötigt den aktuellen Control-Dienst der Telefonanlage, der den Aktivierungszustand mitsendet.

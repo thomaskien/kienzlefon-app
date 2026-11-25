@@ -237,7 +237,7 @@ echo json_encode([$exports,$replies]);
     def test_sms_rendering_card_table_plaintext_and_polling_focus(self):
         source = (self.site / "telepraxis-app.php").read_text()
         names = ["escapeHtml", "createCommentItems", "createReceivedSmsHistory", "createCard",
-                 "createCardActions", "createHeader", "createPhoneActions", "createSelectionControl", "createTable",
+                 "createCardActions", "createHeader", "createPhoneActions", "patientButtons", "patientMatches", "createSelectionControl", "createTable",
                  "tableActionButtons", "selectionChecked", "buildCardText", "captureTransientState", "restoreTransientState",
                  "createRecordings", "createCategoryTags", "createAnliegenBody"]
         functions = []
@@ -248,7 +248,7 @@ echo json_encode([$exports,$replies]);
             functions.append(source[start:start + 1 + end.start()])
         program = "\n".join(functions) + r'''
 const assert = require('node:assert/strict');
-const t2medEnabled = false;
+const t2medEnabled = false, patientIntegration = false;
 const selected = {middle:new Set(),right:new Set(),trash:new Set()};
 const openRecordingFiles = new Set();
 const comment = {kind:'sms_received',text:'<script>unsafe</script>\nSMS Text',
@@ -266,7 +266,7 @@ assert.ok(buildCardText(entry).includes('SMS eingegangen · 29.09.2026 12:02 · 
 assert.ok(buildCardText(entry).includes(comment.text));
 let focused = false; let selection = null;
 const input = {value:'Unfertiger Kommentar',selectionStart:3,selectionEnd:8,
-    matches:s=>s==='[data-comment-input]',getAttribute:()=>entry.file,
+    closest:()=>null, matches:s=>s==='[data-comment-input]',getAttribute:()=>entry.file,
     focus:()=>{focused=true;},setSelectionRange:(a,b)=>{selection=[a,b];}};
 const document = {activeElement:input,querySelector:()=>input};
 const CSS = {escape:x=>x};

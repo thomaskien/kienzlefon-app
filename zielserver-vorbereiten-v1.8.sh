@@ -6,6 +6,8 @@
 # von Dr. Thomas Kienzle / ChatGPT
 #
 # Changelog
+# 2026-11-24: Gemeinsame Rufnummern-Units für Erstinstallation und App-Update verwenden.
+# 2026-11-23: Lokale Rufnummernauflösung für neue und offene Vorgänge einrichten.
 # 2026-11-22: Aktive Webdienste nach Vergabe der Inbox-Gruppe zuverlässig neu starten und Fehler melden.
 # 2026-11-19: Praxisserver mit SSH-Abholer oder lokaler Kienzlefon-Inbox aus dem Modulmenü installieren.
 # 2026-11-18: Paketquelle vorab pruefen; Schluessel separat fuer das Fon-Setup vorbereiten.
@@ -122,13 +124,12 @@ verify_php_extensions() {
   }
 }
 
-stage_programs() {
-  local source_dir="$1" with_fetch="$2" name
-  local files=("${WEB_FILES[@]}")
-  if (( with_fetch )); then files+=("$FETCH_FILE" "$AUDIO_HELPER"); fi
+stage_files() {
+  local source_dir="$1" name
+  shift
   SOURCE_STAGE="$(mktemp -d)"
   trap 'rm -rf -- "$SOURCE_STAGE"' EXIT
-  for name in "${files[@]}"; do
+  for name in "$@"; do
     if [[ -n "$source_dir" ]]; then
       if [[ ! -f "$source_dir/$name" || -L "$source_dir/$name" ]]; then
         echo "Regulaere Paketdatei fehlt: $source_dir/$name" >&2
@@ -142,6 +143,13 @@ stage_programs() {
     fi
     [[ -s "$SOURCE_STAGE/$name" ]] || { echo "Leere Programmdatei: $name" >&2; return 1; }
   done
+}
+
+stage_programs() {
+  local source_dir="$1" with_fetch="$2"
+  local files=("${WEB_FILES[@]}" telepraxis-rufnummern.service telepraxis-rufnummern.timer)
+  if (( with_fetch )); then files+=("$FETCH_FILE" "$AUDIO_HELPER"); fi
+  stage_files "$source_dir" "${files[@]}"
   if (( with_fetch )); then bash -n "$SOURCE_STAGE/$FETCH_FILE"; fi
   python3 -m json.tool "$SOURCE_STAGE/telepraxis-telephony-schema.json" >/dev/null
 }
@@ -575,11 +583,44 @@ show_summary() {
   echo "- sms-config.php ist ueber den normalen Webserver erreichbar und mit dem obigen Adminpasswort geschuetzt."
 }
 
+install_lookup_timer() {
+  if [[ "$WEBROOT_DIR" != /var/www/html || "$WEB_USER" != www-data ]]; then
+    python3 - "$SOURCE_STAGE/telepraxis-rufnummern.service" "$WEBROOT_DIR" "$WEB_USER" <<'PY'
+from pathlib import Path
+import sys
+
+unit, root, user = sys.argv[1:]
+script = str(Path(root) / "telepraxis-app.php")
+if any(ord(c) < 32 or ord(c) == 127 for c in script + user):
+    sys.exit("Ungültiger Webroot oder Webbenutzer.")
+script = script.replace("\\", "\\\\").replace('"', '\\"').replace("$", "$$").replace("%", "%%")
+path = Path(unit)
+path.write_text(path.read_text().replace('"/var/www/html/telepraxis-app.php"', f'"{script}"')
+                .replace("User=www-data\n", f"User={user}\n"))
+PY
+  fi
+  install -m 0644 "$SOURCE_STAGE/telepraxis-rufnummern.service" "$UNIT_DIR/telepraxis-rufnummern.service"
+  install -m 0644 "$SOURCE_STAGE/telepraxis-rufnummern.timer" "$UNIT_DIR/telepraxis-rufnummern.timer"
+  systemctl daemon-reload
+  systemctl enable --now telepraxis-rufnummern.timer
+}
+
 usage() {
+  echo "Bestehende App: --install-lookup-timer"
   echo "Aufruf: bash zielserver-vorbereiten-v1.8.sh [--source-dir VERZEICHNIS] [--user ZIELBENUTZER] [--with-fetch | --no-fetch | --prepare-keys]"
 }
 
 main() {
+  if [[ $# == 1 && $1 == --install-lookup-timer ]]; then
+    require_root
+    grep -q -- '--resolve-inbox' "$WEBROOT_DIR/telepraxis-app.php" || { echo "App mit Rufnummernauflösung zuerst aktualisieren." >&2; return 1; }
+    local unit_source
+    unit_source="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+    if [[ ! -f "$unit_source/telepraxis-rufnummern.service" && ! -f "$unit_source/docs/INSTALLER.md" ]]; then unit_source=""; fi
+    stage_files "$unit_source" telepraxis-rufnummern.service telepraxis-rufnummern.timer
+    install_lookup_timer
+    return
+  fi
   local source_dir="" keys_only=0 with_fetch="" choice script_dir
   local target_user=""
   local shared_group=""
@@ -734,6 +775,7 @@ main() {
     systemctl enable --now "$service_name"
   fi
 
+  install_lookup_timer
   restart_active_web_services
 
   show_summary "$target_user" "$shared_group" "$source_host" "$source_user" "$source_port" "$base_dir" "$inbox_dir" "$config_dir" "$app_target" "$sms_lib_target" "$sms_config_target" "$sms_credentials" "$fetch_script" "$service_name" "${ssh_key}.pub" "$decrypt_public" "$app_admin_password" "$sms_config_password"
