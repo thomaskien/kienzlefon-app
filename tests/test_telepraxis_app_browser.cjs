@@ -48,6 +48,7 @@ const { randomBytes } = require('node:crypto');
         let overviewName = 'overview-current';
         let commands = [], confirm = false, lookups = [], answered = false;
         let paired = false, normal203 = true, revision203 = 17;
+        let checkExtensionLayout = false;
         middleware = http.createServer(async (req, res) => {
             res.setHeader('Content-Type', 'application/json');
             if (req.url?.startsWith('/api/v1/practice/')) {
@@ -100,6 +101,17 @@ const { randomBytes } = require('node:crypto');
                     ext.routing.normal = normal203;
                     ext.routing.permissions.normal = {can_enable:true, can_disable:true, enable_reason:null, disable_reason:null};
                     overview.extensions.push(ext);
+                }
+                if (checkExtensionLayout) {
+                    const baseExtension = overview.extensions[0];
+                    overview.extensions = [
+                        ['222', 'offline'], ['987654321012', 'busy'], ['202', 'busy'],
+                        ['9', 'idle'], ['227', 'unknown'], ['201', 'ringing'],
+                    ].map(([id, state]) => ({
+                        ...baseExtension, id, state,
+                        label: 'Synthetischer langer Nebenstellenname ' + id,
+                        state_age_ms: id === '987654321012' ? 9999 : 0,
+                    }));
                 }
                 overview.internal_channel = 'server-side-details';
                 res.end(JSON.stringify(overview));
@@ -547,6 +559,7 @@ const { randomBytes } = require('node:crypto');
         assert.equal(legacy.stand,'2026-11-20');
         assert.equal(JSON.parse(fs.readFileSync(closedFile)).app.rufnummernaufloesung,undefined);
         overviewName='overview-current';
+        checkExtensionLayout = true;
         await page.evaluate(() => {localStorage.setItem('kienzlefon_t2med_patient_enabled','1'); localStorage.setItem('kienzlefon_telephony_enabled','1');});
         await ready(base+'?benutzer=Julia&arbeitsplatz=empfang-1');
         assert.equal(await page.locator('[data-summary-key="ai"]').count(),0);
@@ -561,6 +574,22 @@ const { randomBytes } = require('node:crypto');
         assert.equal(workOrders.at(-1).client_id,'empfang-1');
         await page.keyboard.press('t');
         await page.waitForSelector('#telephony-panel[open] kbd');
+        await page.waitForSelector('[data-state="unknown"] [data-dial="987654321012"]');
+        const cards = page.locator('.telephony-extension');
+        assert.deepEqual(await cards.locator('.telephony-number').allTextContents(), ['9','201','202','222','227','987654321012']);
+        const colors = await cards.evaluateAll(items => items.map(el => getComputedStyle(el).backgroundColor));
+        assert.equal(new Set(colors.slice(0,4)).size,4);
+        assert.equal(colors[3],colors[4]);
+        assert.equal(colors[3],colors[5]);
+        assert.doesNotMatch((await cards.allInnerTexts()).join(' '), /Frei|Klingelt|Belegt|Nicht erreichbar/);
+        assert.ok(await cards.last().evaluate(el => {
+            const label = el.querySelector('.extension-label'), number = el.querySelector('.telephony-number');
+            const left = label.getBoundingClientRect(), right = number.getBoundingClientRect();
+            const header = el.querySelector('.extension-heading').getBoundingClientRect();
+            return label.scrollWidth > label.clientWidth && getComputedStyle(label).textOverflow === 'ellipsis'
+                && Math.abs(left.top - right.top) < 1 && left.right < right.left
+                && right.width >= number.scrollWidth - 1 && Math.abs(right.right - header.right) < 1;
+        }), 'Lange Bezeichnung gekürzt, vollständige Nummer rechts in derselben Zeile');
         await page.keyboard.press('t');
         assert.equal(await page.locator('#telephony-panel').evaluate(el => el.open), false);
         const orderCount = workOrders.length;
@@ -568,10 +597,10 @@ const { randomBytes } = require('node:crypto');
         await page.keyboard.press('t');
         await page.waitForSelector('#telephony-panel[open] kbd');
         const dialResponse = page.waitForResponse(r => r.url().includes('action=dial'));
-        await page.keyboard.press('2');
+        await page.keyboard.press('1');
         await dialResponse;
         assert.equal(workOrders.length, orderCount + 1);
-        assert.equal(workOrders.at(-1).number,'202');
+        assert.equal(workOrders.at(-1).number,'9');
         assert.equal(context.pages().length,1);
         await page.keyboard.press('t');
         assert.equal(await page.locator('#telephony-panel').evaluate(el => el.open), false);
@@ -615,6 +644,23 @@ const { randomBytes } = require('node:crypto');
         }));
         assert.equal(await unknown.locator('button').count(),0);
         assert.equal(await incoming.locator('[data-menu]').count(), 0);
+        for (const id of ['demo-call','incoming','unknown-call']) {
+            const aligned = await page.locator(`[data-call-id="${id}"] .call-line`).evaluate(line => {
+                const items = Array.from(line.children);
+                const rects = items.map(el => el.getBoundingClientRect());
+                const gaps = rects.slice(1).map((r,i) => r.left - rects[i].right);
+                const baselines = items.map(el => {
+                    const range = document.createRange();
+                    range.selectNodeContents(el.querySelector('.patient-label, .phone-digits') || el);
+                    return range.getBoundingClientRect().bottom;
+                });
+                const bubble = line.parentElement.getBoundingClientRect();
+                return gaps.every(gap => gap >= 8 && Math.abs(gap - gaps[0]) < 1)
+                    && Math.max(...baselines) - Math.min(...baselines) <= 2
+                    && rects[0].left - bubble.left >= 12 && bubble.right - rects.at(-1).right >= 12;
+            });
+            assert.ok(aligned, 'Abstände und Textausrichtung der Anrufanzeige ' + id);
+        }
         const beforePatient = workOrders.length;
         await Promise.all([page.waitForResponse(r => r.url().includes('action=patient')),
             incoming.getByRole('button',{name:'Muster, Leo aus T2med'}).click()]);

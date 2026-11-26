@@ -1,9 +1,11 @@
 <?php
 /*
  * telepraxis-app.php
- * Version: 3.8.3
+ * Version: 3.8.4
  *
  * Fortgeführter Changelog (niemals entfernen, nur ergänzen):
+ * - v3.8.4: Nebenstellen sind numerisch sortiert. Dezente Statusfarben und eine gemeinsame Zeile für Name und Nummer sparen Platz.
+ *   Die Anrufanzeige richtet Status, Namensknöpfe, Rufnummer und Vermittlung mit gleichmäßigen Abständen aus.
  * - v3.8.3: Das Feld für das eigene Telefon heißt „Telefon“. Gespeicherte Zuordnungen und Lesezeichen mit arbeitsplatz bleiben kompatibel.
  * - v3.8.2: Rufgruppen-Haken verwenden die Arbeitsplatzfreigabe der gekoppelten Telefonanlage. Der App-Server bestätigt Praxis und Arbeitsplatz beim Schalten und beim Ergebnisabruf.
  * - v3.8.1: T2med-Namen einzeilig als „Nachname, Vorname“. Rufnummern nutzen bei Bedarf eine eigene Zeile und zeigen bei Kürzung die ganze Nummer im Tooltip.
@@ -131,7 +133,7 @@ define('TELEPRAXIS_APP', true);
 require_once __DIR__ . '/telepraxis-sms.php';
 
 const TELEPRAXIS_APP_NAME = 'kienzlefon app';
-const TELEPRAXIS_APP_VERSION = '3.8.3';
+const TELEPRAXIS_APP_VERSION = '3.8.4';
 const TELEPRAXIS_INBOX_DIR = __DIR__ . DIRECTORY_SEPARATOR . 'inbox';
 const TELEPRAXIS_POLL_INTERVAL_MS = 5000;
 const TELEPRAXIS_DEFAULT_TIMEZONE = 'Europe/Berlin';
@@ -1767,17 +1769,24 @@ $isAdmin = tp_is_admin();
         .telephony-panel { padding: 0 14px 6px; }
         .telephony-panel summary { cursor: pointer; color: var(--muted); font-size: 0.84rem; width: fit-content; }
         .telephony-extensions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-        .telephony-extension { border: 1px solid var(--panel-border); border-radius: 10px; padding: 5px 9px; font-size: 0.82rem; }
-        .telephony-extension { position: relative; }
-        .extension-state { display:flex; align-items:baseline; gap:8px; justify-content:space-between; }
-        .extension-state .idle { color:#176b38; font-weight:700; }
-        .extension-state .busy { color:#af202a; font-weight:700; }
-        .telephony-number { font:inherit; font-weight:700; margin-left:auto; padding:0; color:inherit; background:none; border:0; }
-        .extension-contact { display:block; width:100%; padding:0; text-align:left; border:0; font:inherit; color:inherit; background:none; cursor:pointer; }
+        .telephony-extension {
+            position:relative; flex:0 1 11rem; min-width:0; max-width:100%;
+            border:1px solid var(--panel-border); border-radius:10px; padding:5px 9px;
+            font-size:0.82rem; background:var(--gray-bg);
+        }
+        .telephony-extension[data-state="idle"] { background:var(--green-bg); }
+        .telephony-extension[data-state="ringing"] { background:#fff0d9; }
+        .telephony-extension[data-state="busy"] { background:#fbe6e6; }
+        .extension-heading { display:flex; width:100%; align-items:baseline; gap:8px; text-align:left; }
+        .extension-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .telephony-number { flex:none; margin-left:auto; }
+        .extension-contact { padding:0; border:0; font:inherit; color:inherit; background:none; cursor:pointer; }
         .extension-contact:hover .telephony-number { text-decoration:underline; }
         .telephony-extension kbd { position:absolute; right:-3px; top:-10px; background:#243552; color:white; padding:1px 5px; border-radius:4px; }
         .telephony-calls { display:flex; gap:6px; flex-wrap:wrap; padding:0 14px; isolation:isolate; }
-        .call-bubble { min-width:0; max-width:100%; padding:5px 9px; margin-bottom:4px; border-radius:10px; color:#173121; }
+        .call-bubble { min-width:0; max-width:100%; padding:5px 14px; margin-bottom:4px; border-radius:10px; color:#173121; }
+        .call-line { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; overflow-wrap:anywhere; }
+        .call-line .patient-hit { display:inline-flex; align-items:baseline; }
         .call-bubble.connected { background:#cef1d5; }
         .call-bubble.ringing { background:#ffe69b; color:#4a3300; }
         .call-bubble button,.call-bubble select { font:inherit; cursor:pointer; }

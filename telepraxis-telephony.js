@@ -3,7 +3,7 @@
     'use strict';
     const endpoint = 'telepraxis-telephony.php';
     const groups = { normal: 'Normal', specialist: 'ROT' };
-    const states = { idle: 'Frei', ringing: 'Klingelt', busy: 'Belegt', offline: 'Nicht erreichbar', unknown: '—' };
+    const states = { idle: 'Frei', ringing: 'Klingelt', busy: 'Belegt', offline: 'Nicht erreichbar', unknown: 'Status unbekannt' };
     const reasons = {
         not_supported: 'Funktion nicht verfügbar.', state_unknown: 'Zustand unbekannt.',
         route_unavailable: 'Rufgruppe nicht verfügbar.', global_disabled: 'Fernbedienung deaktiviert.',
@@ -204,11 +204,11 @@
                     `<option value="${safe(e.id)}"${this.target === e.id ? ' selected' : ''}>${safe(e.id)} · ${safe(e.label)}</option>`).join('')}</select></label>
                     ${[['blind','Direkt durchstellen'], ['attended','Rückfrage starten']].map(([mode, label]) =>
                         `<button type="button" data-mode="${mode}" ${!targets.some(e => e.id === this.target) ? 'disabled' : ''}>${label}</button>`).join('')}</div>` : '';
-                const names = this.patientButtons?.(call.treffer, call.number, ' oder ') || safe(call.name);
+                const names = this.patientButtons?.(call.treffer, call.number, ' <span>oder</span> ') || safe(call.name);
                 const number = safe(call.number);
                 const phone = number ? `<span class="call-number"><span class="phone-digits">${names ? '(' + number + ')' : number}</span></span>` : '';
                 const caller = [names, phone].filter(Boolean).join(' ') || 'Unbekannter Anrufer';
-                return `<div data-call-id="${safe(call.id)}" class="call-bubble ${call.state === 'connected' ? 'connected' : 'ringing'}"><b>${call.state === 'connected' ? 'Im Gespräch' : 'Klingelt'}</b> ${caller} ${control}${choices}</div>`;
+                return `<div data-call-id="${safe(call.id)}" class="call-bubble ${call.state === 'connected' ? 'connected' : 'ringing'}"><div class="call-line"><b>${call.state === 'connected' ? 'Im Gespräch' : 'Klingelt'}</b> ${caller} ${control}</div>${choices}</div>`;
             }).concat(jobs.map(job => `<div class="call-bubble connected"><b>${job.mode === 'attended' ? 'Rückfrage mit' : 'Vermittlung an'} ${safe(job.target)}</b>
                 ${safe(job.message)} ${[['complete','Gespräch übergeben'],['cancel','Zurück zum Anrufer']].map(([key,label]) => job['can_'+key] ?
                     `<button type="button" data-control="${key}" data-job="${safe(job.request_id)}">${label}</button>` : '').join('')}</div>`)).join('');
@@ -325,7 +325,7 @@
             if (this.panel.hidden || !this.panel.open) return;
             const extensions = this.overview?.extensions || [];
             const content = extensions.length ? extensions.map(ext => {
-                const state = this.fresh(ext.state_age_ms) ? states[ext.state] : states.unknown;
+                const state = this.fresh(ext.state_age_ms) && Object.hasOwn(states, ext.state) ? ext.state : 'unknown';
                 const boxes = Object.entries(groups).map(([route, label]) => {
                     const current = this.permitted(ext, route);
                     const pending = this.pending.get(`${ext.id}/${route}`);
@@ -338,11 +338,11 @@
                     ${pending || current.hint ? 'disabled' : ''}>${label}${member === null ? ' —' : ''}${pending ? ` <small>${progress}</small>` : ''}</label>`;
                 }).join('');
                 const key = this.shortcuts?.slice(this.shortcutPage * 9, this.shortcutPage * 9 + 9).indexOf(ext.id) ?? -1;
-                const heading = `<strong>${safe(ext.label)}</strong><span class="extension-state"><span class="${state === states.idle ? 'idle' : state === states.busy ? 'busy' : ''}">${safe(state)}</span><strong class="telephony-number">${safe(ext.id)}</strong></span>`;
+                const heading = `<strong class="extension-label" title="${safe(ext.label)}">${safe(ext.label)}</strong><strong class="telephony-number">${safe(ext.id)}</strong>`;
                 const contact = this.workplaceActions
-                    ? `<button type="button" class="extension-contact" data-dial="${safe(ext.id)}" aria-label="Nebenstelle ${safe(ext.id)} anrufen">${heading}</button>`
-                    : heading;
-                return `<div class="telephony-extension">${key >= 0 ? `<kbd>${key+1}</kbd>` : ''}${contact}
+                    ? `<button type="button" class="extension-heading extension-contact" data-dial="${safe(ext.id)}" aria-label="Nebenstelle ${safe(ext.id)} anrufen">${heading}</button>`
+                    : `<div class="extension-heading">${heading}</div>`;
+                return `<div class="telephony-extension" data-state="${state}" role="group" aria-label="${safe(ext.label)}, ${safe(ext.id)}, ${states[state]}" title="${states[state]}">${key >= 0 ? `<kbd>${key+1}</kbd>` : ''}${contact}
                     <div class="telephony-groups">${boxes}</div></div>`;
             }).join('') : '<span class="telephony-unavailable">Nebenstellenstatus nicht verfügbar.</span>';
             this.panel.querySelector('[data-shortcut-help]').textContent = this.shortcuts?.length > 9 ? '0 · Weitere Nebenstellen' : '';
@@ -392,6 +392,7 @@
                 if (current()) { this.desk = desk; this.deskAt = start; }
                 if (!current()) return;
                 if (!result.ok || result.data.schema_version !== 1) throw new Error('Telefonieübersicht nicht verfügbar.');
+                result.data.extensions.sort((a, b) => Number(a.id) - Number(b.id) || a.id.length - b.id.length);
                 this.overview = result.data;
                 this.at = start;
                 for (const check of checks.filter(Boolean)) this.reconcile(...check);

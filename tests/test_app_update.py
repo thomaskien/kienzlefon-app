@@ -504,7 +504,7 @@ esac
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         content = (self.webroot / "telepraxis-app.php").read_text()
         self.assertIn("const TELEPRAXIS_APP_NAME = 'kienzlefon app';", content)
-        self.assertIn("const TELEPRAXIS_APP_VERSION = '3.8.3';", content)
+        self.assertIn("const TELEPRAXIS_APP_VERSION = '3.8.4';", content)
         self.assertIn("const TELEPRAXIS_POLL_INTERVAL_MS = 4000 + 250;", content)
         self.assertIn("const TELEPRAXIS_T2MED_ENABLED = true;", content)
         self.assertIn("const TELEPRAXIS_T2MED_BASE_URL = 'http://middleware.example:8765';", content)

@@ -43,6 +43,12 @@ Nur die besprochenen Ergänzungen ändern die Oberfläche. Farben, Schrift, best
 
 Einzelrechte, Gruppenregeln und Schnittstellen stehen in der [Abstimmung der Nebenstellensteuerung](ABSTIMMUNG-NEBENSTELLENSTEUERUNG-2026-11-17.md).
 
+### In App 3.8.4 umgesetzte Anzeigeänderungen (26.–27.11.2026)
+
+- **Anrufanzeige oberhalb der Nebenstellen.** In beiden Zuständen („Klingelt“ und „Im Gespräch“) die Statusbezeichnung, den Namensknopf, die Rufnummer und den gegebenenfalls sichtbaren Knopf „Vermitteln“ auf einer gemeinsamen Grundlinie ausrichten. Zwischen allen sichtbaren Elementen den gleichen gut sichtbaren Abstand lassen, auch auf beiden Seiten des Namensknopfs und zwischen Rufnummer und „Vermitteln“. Fehlt der Namensknopf, gilt derselbe Abstand direkt zwischen Statusbezeichnung und Rufnummer. Das Anzeigefeld etwas breiter machen und links und rechts gleich viel Innenabstand vorsehen.
+- **Telefonliste.** Die sichtbaren Statuswörter „Frei“, „Klingelt“ und „Belegt“ entfernen. Das gesamte Feld der jeweiligen Nebenstelle dezent mit der Statusfarbe hinterlegen. Vorgesehene Zuordnung ist Grün für frei, Orange für klingelt, Rot für belegt und Grau für einen unklaren Status oder eine unregistrierte Nebenstelle.
+- **Beschriftung und Reihenfolge (27.11.2026).** Bezeichnung und Nebenstellennummer in einer Zeile anzeigen. Die Nummer bleibt rechtsbündig und vollständig sichtbar. Die Bezeichnung steht linksbündig und endet bei Platzmangel mit „…“. Die Liste numerisch aufsteigend nach Nebenstellennummer sortieren. Die Zifferntasten zur Nebenstellenwahl folgen der sichtbaren Reihenfolge.
+
 ## Audio-Beilagen und Löschung
 
 Die aktive Liste liest nur Vorgangs-JSONs direkt in der konfigurierten Inbox.

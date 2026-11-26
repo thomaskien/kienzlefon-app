@@ -6,7 +6,7 @@ Die **kienzlefon app** hieß bisher **telepraxis-app**. Seit **3.8.3** heißt da
 T2med-Aktentreffer einzeilig als „Nachname, Vorname“. Bei Platzmangel zeigt der
 Tooltip die vollständige Rufnummer. Version **3.7** ergänzte
 Teilanliegen, Audio-Beilagen aus der Inbox und die optionale Telefonieübersicht.
-Das installierbare App-Paket steht im [Release v3.8.3](https://github.com/thomaskien/kienzlefon-app/releases/tag/v3.8.3) zum Download. Die Screenshots zeigen ältere Versionen.
+Das installierbare App-Paket steht im [Release v3.8.4](https://github.com/thomaskien/kienzlefon-app/releases/tag/v3.8.4) zum Download. Die Screenshots zeigen ältere Versionen.
 
 Die Haupt-App bleibt `telepraxis-app.php`. Für SMS-Versand wird zusätzlich `telepraxis-sms.php` als separate Funktionsdatei eingebunden; die Konfiguration erfolgt über `sms-config.php`.
 
@@ -96,6 +96,8 @@ getrennt einschalten. Die Telefonie ergänzt die Zählerleiste um Warteschleife,
 IVR, AI und Anrufe heute. Der Bereich **Nebenstellen** lässt sich darunter
 aufklappen. **Normal** und **ROT** zeigen den bestätigten Stand der Anlage.
 Die Administration und die Middleware geben die Schaltmöglichkeiten vor.
+
+Seit **3.8.4** sind die Nebenstellen nach Nummer sortiert. Links steht die Bezeichnung, rechts die vollständige Nummer. Die Hintergrundfarbe zeigt den Zustand an. Grün bedeutet frei, Orange klingelt, Rot belegt und Grau unbekannt, veraltet oder nicht erreichbar. Die Zifferntasten zur Wahl folgen der angezeigten Reihenfolge.
 
 Universalinstaller ab 1.9 bietet im Praxismenü unter **5** die lokale Asterisk-Anzeige, die Verbindung zu einer externen T2med-Middleware und die vollständige lokale T2med-Installation an. Middleware ab 1.5.2 richtet den lokalen App-Zugang automatisch ein. Beim ersten Öffnen erkennt die App eine eingerichtete Quelle. Eine gespeicherte Auswahl im Hamburger-Menü hat Vorrang. [Installationsanleitung](docs/INSTALLER.md)
 
